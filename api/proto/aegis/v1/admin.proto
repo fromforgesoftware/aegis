@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package aegis.v1;
+
+// AdminService exposes operational and administrative RPCs for Aegis.
+// Wave 1 ships only Healthz; realm / account / role / IdP / client CRUD
+// land in later waves alongside their schema.
+service AdminService {
+  // Healthz reports service liveness and the running version.
+  rpc Healthz(HealthzRequest) returns (HealthzResponse);
+}
+
+message HealthzRequest {}
+
+message HealthzResponse {
+  // status is "SERVING" when the service is ready to accept traffic.
+  string status = 1;
+  // version is the running service version (matches the image tag).
+  string version = 2;
+}

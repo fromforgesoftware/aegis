@@ -1,0 +1,16 @@
+apiVersion: v2
+name: aegis
+description: Aegis — forge identity + authorization service (Keycloak-equivalent)
+type: application
+version: 0.1.0
+appVersion: '0.1.0'
+keywords:
+  - auth
+  - identity
+  - authorization
+  - oidc
+  - rbac
+  - rebac
+  - forge
+maintainers:
+  - name: Forge

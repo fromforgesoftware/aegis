@@ -1,0 +1,48 @@
+// Package fields holds the logical field-name constants used to build
+// search queries. Each repository maps these camelCase names to its
+// snake_case DB columns in a fieldMapping, so query filters never carry
+// raw column strings.
+package fields
+
+const (
+	ID               = "id"
+	RealmID          = "realmId"
+	AccountID        = "accountId"
+	Email            = "email"
+	Status           = "status"
+	Type             = "type"
+	EmailVerified    = "emailVerified"
+	LastLoginAt      = "lastLoginAt"
+	FailedLoginCount = "failedLoginCount"
+	LockedUntil      = "lockedUntil"
+	TokenHash        = "tokenHash"
+	ExpiresAt        = "expiresAt"
+	ConsumedAt       = "consumedAt"
+	State            = "state"
+	ResultAccountID  = "resultAccountId"
+	ClientID         = "clientId"
+	Code             = "code"
+	SessionID        = "sessionId"
+	UsedAt           = "usedAt"
+	RevokedAt        = "revokedAt"
+	Kind             = "kind"
+	Name             = "name"
+	Enabled          = "enabled"
+	ExternalID       = "externalId"
+	ResourceType     = "resourceType"
+	Verb             = "verb"
+	RoleID           = "roleId"
+	PermissionID     = "permissionId"
+	ParentID         = "parentId"
+	OwnerAccountID   = "ownerAccountId"
+	Visibility       = "visibility"
+	GroupID          = "groupId"
+	ResourceID       = "resourceId"
+	SubjectType      = "subjectType"
+	SubjectID        = "subjectId"
+	LastActive       = "lastActive"
+	Factor           = "factor"
+	ActorID          = "actorId"
+	Action           = "action"
+	Slug             = "slug"
+)

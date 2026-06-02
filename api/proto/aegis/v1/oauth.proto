@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package aegis.v1;
+
+// OAuthService is the low-latency service-to-service mirror of the RFC-shaped
+// HTTP token endpoints. Siblings that verify or rotate tokens on the hot path
+// call these instead of parsing HTTP form responses.
+service OAuthService {
+  // Refresh rotates a refresh token, returning a new access token and a new
+  // refresh token (RFC 6749 §6). Reuse of a rotated token revokes the session.
+  rpc Refresh(RefreshRequest) returns (TokenResponse);
+  // Introspect reports whether a token is active and returns its claims
+  // (RFC 7662).
+  rpc Introspect(IntrospectRequest) returns (IntrospectResponse);
+  // Revoke invalidates a refresh token's session, killing the rotation chain
+  // (RFC 7009). Unknown tokens succeed.
+  rpc Revoke(RevokeRequest) returns (RevokeResponse);
+}
+
+message RefreshRequest {
+  string realm_id = 1;
+  string issuer = 2;
+  string client_id = 3;
+  string client_secret = 4;
+  string refresh_token = 5;
+}
+
+message TokenResponse {
+  string access_token = 1;
+  string token_type = 2;
+  int64 expires_in = 3;
+  string refresh_token = 4;
+  string id_token = 5;
+  string scope = 6;
+}
+
+message IntrospectRequest {
+  string realm_id = 1;
+  string client_id = 2;
+  string client_secret = 3;
+  string token = 4;
+  string token_type_hint = 5;
+}
+
+message IntrospectResponse {
+  bool active = 1;
+  string scope = 2;
+  string client_id = 3;
+  string sub = 4;
+  string token_type = 5;
+  int64 exp = 6;
+  int64 iat = 7;
+  string aud = 8;
+  string iss = 9;
+  string org_id = 10;
+  string org_role = 11;
+}
+
+message RevokeRequest {
+  string realm_id = 1;
+  string client_id = 2;
+  string client_secret = 3;
+  string token = 4;
+  string token_type_hint = 5;
+}
+
+message RevokeResponse {}

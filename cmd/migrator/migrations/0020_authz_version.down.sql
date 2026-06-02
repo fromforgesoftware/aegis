@@ -1,0 +1,11 @@
+DROP TRIGGER IF EXISTS bump_authz_version ON aegis.resource;
+DROP TRIGGER IF EXISTS bump_authz_version ON aegis.actor_set_member;
+DROP TRIGGER IF EXISTS bump_authz_version ON aegis.actor_set;
+DROP TRIGGER IF EXISTS bump_authz_version ON aegis.permission_inheritance;
+DROP TRIGGER IF EXISTS bump_authz_version ON aegis.permission;
+DROP TRIGGER IF EXISTS bump_authz_version ON aegis.role_composition;
+DROP TRIGGER IF EXISTS bump_authz_version ON aegis.role_permission;
+DROP TRIGGER IF EXISTS bump_authz_version ON aegis.role;
+DROP TRIGGER IF EXISTS bump_authz_version ON aegis.acl;
+DROP FUNCTION IF EXISTS aegis.bump_authz_version();
+DROP TABLE IF EXISTS aegis.authz_version;

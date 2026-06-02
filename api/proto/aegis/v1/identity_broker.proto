@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package aegis.v1;
+
+// IdentityBrokerService is the low-latency S2S surface for federation. The
+// hot path — verify upstream token → resolve account — runs through gRPC so
+// service-to-service callers (mmo-game's auth gateway, trading-bot's edge)
+// can skip the JSON:API parsing tax.
+service IdentityBrokerService {
+  // ResolveAccount verifies the raw upstream token against the named realm's
+  // IdP config and resolves (or JIT-provisions) the matching Aegis account.
+  rpc ResolveAccount(ResolveAccountRequest) returns (ResolveAccountResponse);
+}
+
+message ResolveAccountRequest {
+  string realm_id = 1;
+  string idp_name = 2;
+  string token = 3;
+}
+
+message ResolveAccountResponse {
+  string account_id = 1;
+  string email = 2;
+  string display_name = 3;
+  bool created = 4;
+  bool link_required = 5;
+}

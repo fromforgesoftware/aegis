@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package aegis.v1;
+
+// MFAService is the low-latency step-up surface. A consumer that gates a
+// sensitive operation (e.g. trading-bot's "fresh 2FA before a large trade")
+// calls StepUp with a fresh factor proof, gets a short-lived token + ACR, and
+// later VerifyStepUp confirms the token without a web bounce.
+service MFAService {
+  // StepUp verifies a second factor and mints a short-lived re-auth token.
+  rpc StepUp(StepUpRequest) returns (StepUpResponse);
+  // VerifyStepUp confirms a step-up token is still valid.
+  rpc VerifyStepUp(VerifyStepUpRequest) returns (VerifyStepUpResponse);
+}
+
+message StepUpRequest {
+  string account_id = 1;
+  string factor = 2; // TOTP | RECOVERY
+  string proof = 3;
+}
+
+message StepUpResponse {
+  string token = 1;
+  string acr = 2;
+  int64 expires_at = 3; // unix seconds
+}
+
+message VerifyStepUpRequest {
+  string token = 1;
+}
+
+message VerifyStepUpResponse {
+  bool valid = 1;
+  string account_id = 2;
+  string acr = 3;
+}

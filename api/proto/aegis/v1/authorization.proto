@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package aegis.v1;
+
+// AuthorizerService is the low-latency S2S authorization surface. Each RPC is
+// a single indexed read of the effective_authorizations projection, so callers
+// on the request hot path (mmo-game's edge, trading-bot's order gate) get a
+// permission decision without paying the JSON:API parsing tax or walking the
+// resource hierarchy per request.
+service AuthorizerService {
+  // Check answers whether an account holds a permission on a resource.
+  rpc Check(CheckRequest) returns (CheckResponse);
+  // BatchCheck answers many (resource, permission) pairs for one account in a
+  // single round trip.
+  rpc BatchCheck(BatchCheckRequest) returns (BatchCheckResponse);
+  // ListAccessible returns every resource an account holds a permission on —
+  // the "which docs can this user read" query.
+  rpc ListAccessible(ListAccessibleRequest) returns (ListAccessibleResponse);
+  // Version returns the current write and projection versions, so a caller can
+  // read the token to pass as min_version after a write.
+  rpc Version(VersionRequest) returns (VersionResponse);
+}
+
+// min_version, when > 0, asserts read-after-write freshness: the request fails
+// with a precondition error unless the projection has caught up to it.
+
+message CheckRequest {
+  string account_id = 1;
+  string resource_id = 2;
+  string permission_id = 3;
+  int64 min_version = 4;
+}
+
+message CheckResponse {
+  bool allowed = 1;
+}
+
+message VersionRequest {}
+
+message VersionResponse {
+  int64 write_version = 1;
+  int64 projection_version = 2;
+}
+
+message PermissionCheck {
+  string resource_id = 1;
+  string permission_id = 2;
+}
+
+message PermissionDecision {
+  string resource_id = 1;
+  string permission_id = 2;
+  bool allowed = 3;
+}
+
+message BatchCheckRequest {
+  string account_id = 1;
+  repeated PermissionCheck checks = 2;
+  int64 min_version = 3;
+}
+
+message BatchCheckResponse {
+  repeated PermissionDecision decisions = 1;
+}
+
+message ListAccessibleRequest {
+  string account_id = 1;
+  string permission_id = 2;
+  int64 min_version = 3;
+}
+
+message ListAccessibleResponse {
+  repeated string resource_ids = 1;
+}

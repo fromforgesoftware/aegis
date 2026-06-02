@@ -1,0 +1,47 @@
+replicaCount: 1
+
+image:
+  pullPolicy: IfNotPresent
+
+database:
+  host: postgres
+  port: '5432'
+  name: forge
+  schema: aegis
+  ssl: disable
+  username: forge
+  password: forge
+
+# Local-dev key-encryption key (base64 of "aegis-local-dev-key-not-for-prod").
+# DEV ONLY — generate a real random 32-byte key per environment.
+crypto:
+  keyEncryptionKey: 'YWVnaXMtbG9jYWwtZGV2LWtleS1ub3QtZm9yLXByb2Q='
+
+# DEV ONLY — seeds the master realm, an admin you can sign into Foundry with,
+# and the foundry public OIDC client. Well-known dev credentials.
+bootstrap:
+  enabled: true
+  realm: master
+  realmDisplayName: Master
+  adminEmail: admin@forge.local
+  adminPassword: admin1234
+  clientId: foundry
+  # Foundry's OIDC callback path is /api/auth/oidc/<providerId>/callback; the
+  # providerId is "aegis" (see foundry oidcProviders).
+  redirectUris: 'http://localhost:8080/api/auth/oidc/aegis/callback'
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: '1'
+    memory: 512Mi
+
+gatewaySecret: dev-forge-gateway-secret

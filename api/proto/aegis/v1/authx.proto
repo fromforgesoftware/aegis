@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package aegis.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// AuthxService is Aegis's unified auth surface. Wave 2 ships native
+// password Register + Login (returning the authenticated account). OIDC
+// token issuance (access/refresh/JWKS) lands in Wave 3; federation in
+// Wave 4; authorization (Check/Grant) folds in from Wave 5.
+service AuthxService {
+  // Register creates a USER account with a password credential.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  // Login verifies a password and returns the authenticated account.
+  rpc Login(LoginRequest) returns (LoginResponse);
+  // RequestEmailVerification issues a verification token and sends it to
+  // the account's email.
+  rpc RequestEmailVerification(RequestEmailVerificationRequest) returns (RequestEmailVerificationResponse);
+  // VerifyEmail consumes a verification token and marks the email verified.
+  rpc VerifyEmail(VerifyEmailRequest) returns (VerifyEmailResponse);
+  // RequestPasswordReset issues a reset token for the realm+email and sends
+  // it. Always succeeds (no account enumeration).
+  rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse);
+  // ConfirmPasswordReset consumes a reset token and sets the new password.
+  rpc ConfirmPasswordReset(ConfirmPasswordResetRequest) returns (ConfirmPasswordResetResponse);
+}
+
+message RegisterRequest {
+  string realm_id = 1;
+  string email = 2;
+  string password = 3;
+  string display_name = 4;
+}
+
+message RegisterResponse {
+  Account account = 1;
+}
+
+message LoginRequest {
+  string realm_id = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message LoginResponse {
+  Account account = 1;
+}
+
+message RequestEmailVerificationRequest {
+  string account_id = 1;
+}
+
+message RequestEmailVerificationResponse {}
+
+message VerifyEmailRequest {
+  string token = 1;
+}
+
+message VerifyEmailResponse {}
+
+message RequestPasswordResetRequest {
+  string realm_id = 1;
+  string email = 2;
+}
+
+message RequestPasswordResetResponse {}
+
+message ConfirmPasswordResetRequest {
+  string token = 1;
+  string new_password = 2;
+}
+
+message ConfirmPasswordResetResponse {}
+
+// Account is the authenticated identity projection returned by the auth
+// surface. The password hash is never exposed.
+message Account {
+  string id = 1;
+  string realm_id = 2;
+  string type = 3;   // USER | SERVICE
+  string status = 4; // CREATED | ENABLED | DISABLED | BANNED
+  string email = 5;
+  bool email_verified = 6;
+  string display_name = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp last_login_at = 9;
+}
