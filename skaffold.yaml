@@ -13,11 +13,11 @@ profiles:
     build:
       artifacts:
         - image: forge/aegis
-          # Context is the forge repo root so the Dockerfile can COPY the
-          # kit module that go.mod's replace directive points at (../../go/kit).
-          context: ../..
+          # Standalone repo: build context is this repo's root and the
+          # Dockerfile lives there too (no monorepo replace directives).
+          context: .
           docker:
-            dockerfile: services/aegis/Dockerfile
+            dockerfile: Dockerfile
     manifests:
       helm:
         releases:

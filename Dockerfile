@@ -1,16 +1,21 @@
 # Aegis builds two binaries (server + migrator) into one distroless image.
-# Build context is the forge repo root so the kit replace directive
-# (../../go/kit) resolves. See skaffold.yaml / `docker build -f`.
+# Standalone repo: the module lives at the repo root and consumes the
+# published go-kit module (no replace directives, no monorepo siblings).
+# Build context is this repo's root.
 ARG GO_VERSION=1.25
 FROM golang:${GO_VERSION}-alpine AS builder
 WORKDIR /src
 
-# The module surface Aegis needs: the kit, the service itself, and Hallmark
-# (the audit sink imports hallmark/pkg/client via a ../hallmark replace).
-COPY services/aegis/    /src/services/aegis/
-
-WORKDIR /src/services/aegis
+# Disable workspace mode so the build relies solely on go.mod/go.sum.
 ENV GOWORK=off
+
+# Resolve dependencies first for better layer caching.
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the rest of the module source (migrations are embedded via go:embed).
+COPY . .
+
 RUN CGO_ENABLED=0 go build -trimpath -o /out/server   ./cmd/server
 RUN CGO_ENABLED=0 go build -trimpath -o /out/migrator ./cmd/migrator
 
