@@ -8,19 +8,56 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: aegis
-      - uses: actions/checkout@v4
-        with:
-          repository: fromforgesoftware/go-kit
-          path: go-kit
       - uses: actions/setup-go@v5
         with:
-          go-version-file: aegis/go.mod
-      - name: build + vet + test (go-kit via workspace)
+          go-version-file: go.mod
+      # Build/test against the PINNED published go-kit (v0.1.0 in go.mod),
+      # resolved from the module proxy. No sibling checkout / go workspace,
+      # so CI exercises the actually-released dependency.
+      - name: build + vet + test
         run: |
-          cd aegis
-          go work init . ../go-kit
           go build ./...
           go vet ./...
           go test ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.1.1
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # The //go:build integration DB suites use go-kit's gormdbtest helper,
+      # which drives gnomock to start its OWN postgres container via the
+      # docker daemon (postgres 14.6-alpine, gnomock user/db) and injects the
+      # DSN itself. They do NOT connect to an external DB_HOST, so a
+      # `services: postgres` container would go unused. All they require is a
+      # working docker daemon, which the ubuntu-latest runner provides.
+      - name: integration tests
+        run: go test -tags=integration ./...
+
+  buf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+      # Regenerate from api/proto via buf.gen.yaml and fail if the committed
+      # generated code under pkg/api is stale.
+      - name: buf generate (no drift)
+        run: |
+          buf generate
+          git diff --exit-status
