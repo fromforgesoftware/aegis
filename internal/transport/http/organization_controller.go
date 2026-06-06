@@ -29,22 +29,25 @@ import (
 type OrganizationController struct {
 	orgs   app.OrganizationUsecase
 	realms app.RealmUsecase
+	tokens app.TokenIssuer
 }
 
-func NewOrganizationController(orgs app.OrganizationUsecase, realms app.RealmUsecase) kitrest.Controller {
-	return &OrganizationController{orgs: orgs, realms: realms}
+func NewOrganizationController(orgs app.OrganizationUsecase, realms app.RealmUsecase, tokens app.TokenIssuer) kitrest.Controller {
+	return &OrganizationController{orgs: orgs, realms: realms, tokens: tokens}
 }
 
 func (c *OrganizationController) Routes(r kitrest.Router) {
 	r.Route("/api/organizations", func(r kitrest.Router) {
-		r.Post("", kitrest.NewJsonApiCommandHandler(
+		// Self-service: a realm end-user creates their own org. Authenticated
+		// directly by the caller's realm token (not the forge gateway).
+		r.Post("", c.requireRealmToken(kitrest.NewJsonApiCommandHandler(
 			c.create, decodeOrganization, api.OrganizationToDTO,
 			kitrest.HandlerWithOpenAPI(
 				openapi.Summary("Create an organization"),
 				openapi.Description("The caller becomes the organization owner unless an owner relationship is supplied."),
-				openapi.Tags("tenancy"), openapi.Errors(400, 409),
+				openapi.Tags("tenancy"), openapi.Errors(400, 401, 409),
 			),
-		))
+		)))
 		r.Get("", kitrest.NewJsonApiListHandler(
 			c.orgs, api.OrganizationToDTO,
 			kitrest.HandlerWithOpenAPI(openapi.Summary("List organizations"), openapi.Tags("tenancy")),
@@ -59,13 +62,49 @@ func (c *OrganizationController) Routes(r kitrest.Router) {
 				c.orgs, repository.DeleteTypeSoft,
 				kitrest.HandlerWithOpenAPI(openapi.Summary("Delete an organization"), openapi.Tags("tenancy"), openapi.Errors(404)),
 			))
-			r.Post("/activate", http.HandlerFunc(c.activate))
+			r.Post("/activate", c.requireRealmToken(http.HandlerFunc(c.activate))) // self-service
 			r.Get("/members", http.HandlerFunc(c.listMembers))
 			r.Post("/members", http.HandlerFunc(c.addMember))
 			r.Delete("/members/{accountId}", http.HandlerFunc(c.removeMember))
 		})
 	})
-	r.Get("/api/me/organizations", http.HandlerFunc(c.listMine))
+	r.Get("/api/me/organizations", c.requireRealmToken(http.HandlerFunc(c.listMine))) // self-service
+}
+
+// requireRealmToken authenticates a realm end-user's bearer token directly
+// (validating its signature against the issuing realm's keys) and injects it
+// into the context, so the self-service tenancy endpoints (create org, activate,
+// me/organizations) work for an SPA calling aegis without the forge gateway.
+// The realm is identified by the token's issuer (.../realms/<name>).
+func (c *OrganizationController) requireRealmToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			writeJSONError(w, apierrors.Unauthorized("authentication required"))
+			return
+		}
+		raw := strings.TrimPrefix(h, "Bearer ")
+		tok, err := auth.NewToken(raw, auth.TokenType("Bearer"), nil)
+		if err != nil {
+			writeJSONError(w, apierrors.Unauthorized("invalid token"))
+			return
+		}
+		name := realmNameFromIssuer(tok.Claims().Get("iss"))
+		if name == "" {
+			writeJSONError(w, apierrors.Unauthorized("token is not realm-scoped"))
+			return
+		}
+		realm, err := c.realms.Get(r.Context(), app.RealmByName(name))
+		if err != nil || realm == nil {
+			writeJSONError(w, apierrors.Unauthorized("unknown realm"))
+			return
+		}
+		if _, err := c.tokens.VerifyAccessToken(r.Context(), realm.ID(), raw); err != nil {
+			writeJSONError(w, apierrors.Unauthorized("invalid token"))
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(auth.InjectTokenInCtx(r.Context(), tok)))
+	})
 }
 
 func patchOrganization(id string, dto *api.OrganizationDTO) []repository.PatchOption {
