@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/fromforgesoftware/go-kit/application/repository"
 	"github.com/fromforgesoftware/go-kit/auth"
@@ -26,11 +27,12 @@ import (
 // OrganizationController exposes /api/organizations as JSON:API plus a
 // /api/organizations/{id}/members sub-resource backed by authz bindings.
 type OrganizationController struct {
-	orgs app.OrganizationUsecase
+	orgs   app.OrganizationUsecase
+	realms app.RealmUsecase
 }
 
-func NewOrganizationController(orgs app.OrganizationUsecase) kitrest.Controller {
-	return &OrganizationController{orgs: orgs}
+func NewOrganizationController(orgs app.OrganizationUsecase, realms app.RealmUsecase) kitrest.Controller {
+	return &OrganizationController{orgs: orgs, realms: realms}
 }
 
 func (c *OrganizationController) Routes(r kitrest.Router) {
@@ -131,18 +133,55 @@ func (c *OrganizationController) listMine(w http.ResponseWriter, r *http.Request
 }
 
 func (c *OrganizationController) create(ctx context.Context, org domain.Organization) (domain.Organization, error) {
-	if org.Owner() == nil {
-		if tok := auth.TokenFromCtx(ctx); tok != nil {
-			if sub := tok.Claims().Subject(); sub != "" {
-				org = domain.NewOrganization(org.Realm().ID(), org.Name(), org.Slug(),
-					domain.WithOrganizationOwnerID(sub),
-					domain.WithOrganizationStatus(org.Status()),
-					domain.WithOrganizationSettings(org.Settings()),
-				)
+	tok := auth.TokenFromCtx(ctx)
+
+	realmID := ""
+	if r := org.Realm(); r != nil {
+		realmID = r.ID()
+	}
+	// A realm-scoped end-user token identifies its realm by issuer
+	// (.../realms/<name>), so an SPA can create an org with just {name, slug}:
+	// infer the realm from the caller's token when the client didn't supply a
+	// realmId. Mirrors the owner-from-token inference below.
+	if realmID == "" && tok != nil {
+		if name := realmNameFromIssuer(tok.Claims().Get("iss")); name != "" {
+			if realm, err := c.realms.Get(ctx, app.RealmByName(name)); err == nil && realm != nil {
+				realmID = realm.ID()
 			}
 		}
 	}
-	return c.orgs.Create(ctx, org)
+
+	ownerID := ""
+	if o := org.Owner(); o != nil {
+		ownerID = o.ID()
+	} else if tok != nil {
+		ownerID = tok.Claims().Subject()
+	}
+
+	opts := []domain.OrganizationOption{
+		domain.WithOrganizationStatus(org.Status()),
+		domain.WithOrganizationSettings(org.Settings()),
+	}
+	if ownerID != "" {
+		opts = append(opts, domain.WithOrganizationOwnerID(ownerID))
+	}
+	return c.orgs.Create(ctx, domain.NewOrganization(realmID, org.Name(), org.Slug(), opts...))
+}
+
+// realmNameFromIssuer extracts the realm name from an OIDC issuer claim of the
+// form ".../realms/<name>". Returns "" when the claim isn't a realm issuer.
+func realmNameFromIssuer(iss any) string {
+	s, _ := iss.(string)
+	const marker = "/realms/"
+	i := strings.LastIndex(s, marker)
+	if i < 0 {
+		return ""
+	}
+	name := s[i+len(marker):]
+	if j := strings.IndexByte(name, '/'); j >= 0 {
+		name = name[:j]
+	}
+	return name
 }
 
 func decodeOrganization(req *http.Request) (domain.Organization, error) {
