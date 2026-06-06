@@ -19,7 +19,7 @@ const (
 	permOrgRead          = "organization.read"
 	permOrgUpdate        = "organization.update"
 	permOrgDelete        = "organization.delete"
-	permOrgMembersManage = "organization.members.manage"
+	permOrgMembersManage = "organization.manageMembers"
 
 	orgRoleOwner  = "Owner"
 	orgRoleAdmin  = "Admin"
@@ -369,7 +369,7 @@ func (uc *organizationUsecase) ensureOrgRBAC(ctx context.Context, realmID string
 		{permOrgRead, "read"},
 		{permOrgUpdate, "update"},
 		{permOrgDelete, "delete"},
-		{permOrgMembersManage, "members.manage"},
+		{permOrgMembersManage, "manageMembers"},
 	}
 	for _, p := range perms {
 		if err := uc.ensurePermission(ctx, p.id, p.verb); err != nil {
