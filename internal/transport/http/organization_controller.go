@@ -197,9 +197,15 @@ func (c *OrganizationController) create(ctx context.Context, org domain.Organiza
 		ownerID = tok.Claims().Subject()
 	}
 
+	// settings is a NOT NULL jsonb column; default to {} so a client that omits
+	// it (e.g. an SPA creating a workspace) doesn't hit a null-constraint error.
+	settings := org.Settings()
+	if settings == nil {
+		settings = map[string]any{}
+	}
 	opts := []domain.OrganizationOption{
 		domain.WithOrganizationStatus(org.Status()),
-		domain.WithOrganizationSettings(org.Settings()),
+		domain.WithOrganizationSettings(settings),
 	}
 	if ownerID != "" {
 		opts = append(opts, domain.WithOrganizationOwnerID(ownerID))
