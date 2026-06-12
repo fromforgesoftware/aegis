@@ -3,7 +3,8 @@
 # published go-kit module (no replace directives, no monorepo siblings).
 # Build context is this repo's root.
 ARG GO_VERSION=1.25
-FROM golang:${GO_VERSION}-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS builder
+ARG TARGETOS TARGETARCH
 WORKDIR /src
 
 # Disable workspace mode so the build relies solely on go.mod/go.sum.
@@ -16,8 +17,8 @@ RUN go mod download
 # Copy the rest of the module source (migrations are embedded via go:embed).
 COPY . .
 
-RUN CGO_ENABLED=0 go build -trimpath -o /out/server   ./cmd/server
-RUN CGO_ENABLED=0 go build -trimpath -o /out/migrator ./cmd/migrator
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -o /out/server   ./cmd/server
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -o /out/migrator ./cmd/migrator
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=builder /out/server   /app/server
