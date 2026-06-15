@@ -78,6 +78,10 @@ func (i *tokenIssuer) MintAccessToken(ctx context.Context, realmID string, in Ac
 		"jti":       uuid.NewString(),
 		"client_id": in.ClientID,
 		"scope":     strings.Join(in.Scopes, " "),
+		// rid is the realm's UUID (distinct from iss, which carries the realm
+		// name). Resource servers stamp it on audit events, whose realm_id is a
+		// UUID column — the issuer URL would not parse.
+		"rid": realmID,
 	}
 	if in.OrgID != "" {
 		claims["org_id"] = in.OrgID

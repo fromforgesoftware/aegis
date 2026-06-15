@@ -29,9 +29,9 @@ func TestMintAccessToken(t *testing.T) {
 	key, err := cryptox.GenerateRSAKey()
 	require.NoError(t, err)
 	keys := apptest.NewSigningKeyService(t)
-	keys.EXPECT().ActiveSigner(mock.Anything, "r").Return(app.Signer{Kid: "kid-1", Key: key}, nil)
+	keys.EXPECT().ActiveSigner(mock.Anything, "realm-uuid-1").Return(app.Signer{Kid: "kid-1", Key: key}, nil)
 
-	tok, expiresIn, err := app.NewTokenIssuer(keys).MintAccessToken(context.Background(), "r", app.AccessTokenInput{
+	tok, expiresIn, err := app.NewTokenIssuer(keys).MintAccessToken(context.Background(), "realm-uuid-1", app.AccessTokenInput{
 		Issuer: "https://auth/realms/r", Subject: "acc-1", Audience: "web", ClientID: "web",
 		Scopes: []string{"openid", "profile"}, TTL: time.Hour,
 	})
@@ -45,6 +45,8 @@ func TestMintAccessToken(t *testing.T) {
 	assert.Equal(t, "acc-1", claims["sub"])
 	assert.Equal(t, "openid profile", claims["scope"])
 	assert.NotEmpty(t, claims["jti"])
+	// rid carries the realm UUID for resource-server audit attribution.
+	assert.Equal(t, "realm-uuid-1", claims["rid"])
 }
 
 func TestVerifyAccessToken_RoundTrip(t *testing.T) {
