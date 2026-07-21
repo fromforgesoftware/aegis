@@ -10,8 +10,8 @@ import (
 	"github.com/fromforgesoftware/go-kit/cache"
 )
 
-// AccountResolver resolves an upstream token to an account. *Client satisfies
-// it; the caching resolver wraps any implementation.
+// AccountResolver resolves an upstream token to an account. IdentityAPI
+// satisfies it; the caching resolver wraps any implementation.
 type AccountResolver interface {
 	ResolveAccount(ctx context.Context, realmID, idpName, token string) (ResolvedAccount, error)
 }

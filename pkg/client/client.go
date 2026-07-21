@@ -1,17 +1,99 @@
-// Package client is the consumer-facing SDK for Aegis's low-latency S2S
-// surfaces. Edge services dial Aegis once and resolve upstream identity tokens
-// to account IDs on the request hot path; the middleware subpackage wraps this
-// into drop-in gRPC/HTTP interceptors.
+// Package client is the consumer-facing SDK for Aegis. Every Aegis API a
+// service can consume is exposed as a small typed interface (one per API),
+// aggregated under Client:
+//
+//   - gRPC (low-latency S2S, unauthenticated — subject ids are explicit
+//     request fields): AdminAPI, AuthxAPI, OAuthAPI, IdentityAPI,
+//     AuthorizerAPI, MFAAPI.
+//   - HTTP JSON:API (admin/write surface, gated by the Foundry gateway
+//     HMAC bearer when FORGE_GATEWAY_SECRET is set): ResourceAPI,
+//     BindingAPI, RoleAPI, PermissionAPI, GroupAPI, AuthorizationAdminAPI.
+//
+// Wire everything with Dial (plain Go) or FxModule (fx apps); each API can
+// also be constructed individually against an existing connection. The
+// middleware subpackage wraps IdentityAPI into drop-in gRPC/HTTP request
+// middleware.
 package client
 
-import (
-	"context"
+// Client aggregates the per-API clients. Accessors return nil when the
+// transport backing that API was not configured (e.g. an HTTP-only client
+// has no AuthorizerAPI).
+type Client interface {
+	// gRPC surfaces.
+	AdminAPI() AdminAPI
+	AuthxAPI() AuthxAPI
+	OAuthAPI() OAuthAPI
+	IdentityAPI() IdentityAPI
+	AuthorizerAPI() AuthorizerAPI
+	MFAAPI() MFAAPI
 
-	"google.golang.org/grpc"
+	// HTTP JSON:API surfaces.
+	ResourceAPI() ResourceAPI
+	BindingAPI() BindingAPI
+	RoleAPI() RoleAPI
+	PermissionAPI() PermissionAPI
+	GroupAPI() GroupAPI
+	AuthorizationAdminAPI() AuthorizationAdminAPI
+}
 
-	apierrors "github.com/fromforgesoftware/go-kit/errors"
-	aegisv1 "github.com/fromforgesoftware/aegis/pkg/api/aegis/v1"
-)
+type client struct {
+	admin      AdminAPI
+	authx      AuthxAPI
+	oauth      OAuthAPI
+	identity   IdentityAPI
+	authorizer AuthorizerAPI
+	mfa        MFAAPI
+
+	resource   ResourceAPI
+	binding    BindingAPI
+	role       RoleAPI
+	permission PermissionAPI
+	group      GroupAPI
+	authzAdmin AuthorizationAdminAPI
+}
+
+func NewClient(
+	admin AdminAPI,
+	authx AuthxAPI,
+	oauth OAuthAPI,
+	identity IdentityAPI,
+	authorizer AuthorizerAPI,
+	mfa MFAAPI,
+	resource ResourceAPI,
+	binding BindingAPI,
+	role RoleAPI,
+	permission PermissionAPI,
+	group GroupAPI,
+	authzAdmin AuthorizationAdminAPI,
+) *client {
+	return &client{
+		admin:      admin,
+		authx:      authx,
+		oauth:      oauth,
+		identity:   identity,
+		authorizer: authorizer,
+		mfa:        mfa,
+		resource:   resource,
+		binding:    binding,
+		role:       role,
+		permission: permission,
+		group:      group,
+		authzAdmin: authzAdmin,
+	}
+}
+
+func (c *client) AdminAPI() AdminAPI                           { return c.admin }
+func (c *client) AuthxAPI() AuthxAPI                           { return c.authx }
+func (c *client) OAuthAPI() OAuthAPI                           { return c.oauth }
+func (c *client) IdentityAPI() IdentityAPI                     { return c.identity }
+func (c *client) AuthorizerAPI() AuthorizerAPI                 { return c.authorizer }
+func (c *client) MFAAPI() MFAAPI                               { return c.mfa }
+func (c *client) ResourceAPI() ResourceAPI                     { return c.resource }
+func (c *client) BindingAPI() BindingAPI                       { return c.binding }
+func (c *client) RoleAPI() RoleAPI                             { return c.role }
+func (c *client) PermissionAPI() PermissionAPI                 { return c.permission }
+func (c *client) GroupAPI() GroupAPI                           { return c.group }
+func (c *client) AuthorizationAdminAPI() AuthorizationAdminAPI { return c.authzAdmin }
 
 // ResolvedAccount is the identity an upstream token maps to.
 type ResolvedAccount struct {
@@ -20,39 +102,4 @@ type ResolvedAccount struct {
 	DisplayName  string
 	Created      bool
 	LinkRequired bool
-}
-
-// Client wraps Aegis's gRPC surfaces with kit error mapping.
-type Client struct {
-	identity aegisv1.IdentityBrokerServiceClient
-}
-
-// New builds a client over an established connection to Aegis.
-func New(conn grpc.ClientConnInterface) *Client {
-	return &Client{identity: aegisv1.NewIdentityBrokerServiceClient(conn)}
-}
-
-// NewFromIdentityClient is the seam tests use to inject a fake gRPC client.
-func NewFromIdentityClient(identity aegisv1.IdentityBrokerServiceClient) *Client {
-	return &Client{identity: identity}
-}
-
-// ResolveAccount verifies the upstream token against the realm's IdP and
-// returns the Aegis account it maps to, JIT-provisioning on first contact.
-func (c *Client) ResolveAccount(ctx context.Context, realmID, idpName, token string) (ResolvedAccount, error) {
-	resp, err := c.identity.ResolveAccount(ctx, &aegisv1.ResolveAccountRequest{
-		RealmId: realmID,
-		IdpName: idpName,
-		Token:   token,
-	})
-	if err != nil {
-		return ResolvedAccount{}, apierrors.FromGRPCError(err)
-	}
-	return ResolvedAccount{
-		AccountID:    resp.GetAccountId(),
-		Email:        resp.GetEmail(),
-		DisplayName:  resp.GetDisplayName(),
-		Created:      resp.GetCreated(),
-		LinkRequired: resp.GetLinkRequired(),
-	}, nil
 }
