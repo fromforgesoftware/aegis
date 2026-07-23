@@ -23,6 +23,11 @@ ALTER TABLE aegis.role_composition DROP CONSTRAINT role_composition_component_ro
 ALTER TABLE aegis.role_effective_permission DROP CONSTRAINT role_effective_permission_role_id_fkey;
 ALTER TABLE aegis.invitation DROP CONSTRAINT invitation_role_id_fkey;
 
+-- The CHECK compares role_id to component_role_id; it must be dropped before
+-- the type change, or it re-validates as text <> uuid while only one column
+-- has been converted.
+ALTER TABLE aegis.role_composition DROP CONSTRAINT role_composition_check;
+
 ALTER TABLE aegis.role ALTER COLUMN id DROP DEFAULT;
 ALTER TABLE aegis.role ALTER COLUMN id TYPE TEXT USING id::text;
 ALTER TABLE aegis.role ALTER COLUMN id SET DEFAULT (uuid_generate_v4())::text;
@@ -45,6 +50,9 @@ ALTER TABLE aegis.role_effective_permission ADD CONSTRAINT role_effective_permis
     FOREIGN KEY (role_id) REFERENCES aegis.role(id) ON DELETE CASCADE;
 ALTER TABLE aegis.invitation ADD CONSTRAINT invitation_role_id_fkey
     FOREIGN KEY (role_id) REFERENCES aegis.role(id) ON DELETE CASCADE;
+
+ALTER TABLE aegis.role_composition ADD CONSTRAINT role_composition_check
+    CHECK (role_id <> component_role_id);
 
 -- SYSTEM roles are realm-less; the partial unique index constrains them (the
 -- table UNIQUE treats NULL realm_ids as distinct rows).

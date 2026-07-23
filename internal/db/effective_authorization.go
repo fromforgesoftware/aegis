@@ -65,7 +65,7 @@ func (r *effectiveAuthorizationRepo) ListResourceIDs(ctx context.Context, accoun
 	      ORDER BY resource_id`
 	args := []any{accountID, permissionID}
 	if isUUID(accountID) {
-		q = `SELECT resource_id FROM aegis.effective_authorizations
+		q = `SELECT resource_id::text FROM aegis.effective_authorizations
 		     WHERE account_id = ? AND permission_id = ?
 		     UNION
 		     SELECT r.id::text FROM aegis.resource r
@@ -94,7 +94,7 @@ func (r *effectiveAuthorizationRepo) AllowedPairs(ctx context.Context, accountID
 		resourceIDs = append(resourceIDs, c.ResourceID)
 		permissionIDs = append(permissionIDs, c.PermissionID)
 	}
-	q := `SELECT resource_id, permission_id FROM aegis.effective_authorizations
+	q := `SELECT resource_id::text, permission_id FROM aegis.effective_authorizations
 	      WHERE account_id = ? AND resource_id IN (?) AND permission_id IN (?)`
 	args := []any{accountID, resourceIDs, permissionIDs}
 	if isUUID(accountID) {

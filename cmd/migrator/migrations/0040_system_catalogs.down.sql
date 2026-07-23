@@ -20,6 +20,10 @@ ALTER TABLE aegis.role_composition DROP CONSTRAINT role_composition_component_ro
 ALTER TABLE aegis.role_effective_permission DROP CONSTRAINT role_effective_permission_role_id_fkey;
 ALTER TABLE aegis.invitation DROP CONSTRAINT invitation_role_id_fkey;
 
+-- Dropped before the type change so it does not re-validate as uuid <> text
+-- mid-conversion (see the up migration).
+ALTER TABLE aegis.role_composition DROP CONSTRAINT role_composition_check;
+
 ALTER TABLE aegis.role ALTER COLUMN id DROP DEFAULT;
 ALTER TABLE aegis.role ALTER COLUMN id TYPE UUID USING id::uuid;
 ALTER TABLE aegis.role ALTER COLUMN id SET DEFAULT uuid_generate_v4();
@@ -42,6 +46,9 @@ ALTER TABLE aegis.role_effective_permission ADD CONSTRAINT role_effective_permis
     FOREIGN KEY (role_id) REFERENCES aegis.role(id) ON DELETE CASCADE;
 ALTER TABLE aegis.invitation ADD CONSTRAINT invitation_role_id_fkey
     FOREIGN KEY (role_id) REFERENCES aegis.role(id) ON DELETE CASCADE;
+
+ALTER TABLE aegis.role_composition ADD CONSTRAINT role_composition_check
+    CHECK (role_id <> component_role_id);
 
 CREATE MATERIALIZED VIEW aegis.effective_authorizations AS
 WITH RECURSIVE resource_ancestry AS (
