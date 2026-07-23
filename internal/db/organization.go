@@ -91,6 +91,11 @@ func organizationToEntity(o domain.Organization) *organizationEntity {
 	if owner := o.Owner(); owner != nil {
 		e.EOwnerID = nilIfEmpty(owner.ID())
 	}
+	// settings is jsonb NOT NULL DEFAULT '{}'; gorm still lists the column in
+	// the INSERT, so a nil []byte binds an explicit NULL (the DEFAULT only
+	// applies when the column is omitted) and violates the constraint. Default
+	// to an empty object so every create/update path writes valid jsonb.
+	e.ESettings = []byte("{}")
 	if s := o.Settings(); s != nil {
 		if b, err := json.Marshal(s); err == nil {
 			e.ESettings = b

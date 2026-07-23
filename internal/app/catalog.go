@@ -146,7 +146,13 @@ func (uc *catalogUsecase) applyOne(ctx context.Context, d domain.CatalogDocument
 // (managed_by, description, the members grant), and overwrites its implication
 // edges to match the document.
 func (uc *catalogUsecase) convergePermissions(ctx context.Context, d domain.CatalogDocument) error {
-	for _, verb := range catalogKeys(d.Permissions) {
+	verbs := catalogKeys(d.Permissions)
+	// Two passes: create + stamp every permission first, THEN rewrite the
+	// implication edges. An edge's implied_permission_id FK can point at a
+	// permission that sorts later (e.g. publish→read), so every permission
+	// row must exist before any edge is inserted (mirrors convergeRoles'
+	// create-all-then-compose ordering).
+	for _, verb := range verbs {
 		spec := d.Permissions[verb]
 		id := d.PermissionID(verb)
 		if _, err := uc.permissions.Get(ctx, byID(id)); err != nil {
@@ -171,10 +177,13 @@ func (uc *catalogUsecase) convergePermissions(ctx context.Context, d domain.Cata
 		if err := uc.catalogs.StampPermission(ctx, id, d.ResourceType, spec.Description); err != nil {
 			return err
 		}
+	}
+	for _, verb := range verbs {
+		id := d.PermissionID(verb)
 		if err := uc.inheritance.DeleteByPermission(ctx, id); err != nil {
 			return err
 		}
-		implied := qualifyAll(d, spec.Implies, d.PermissionID)
+		implied := qualifyAll(d, d.Permissions[verb].Implies, d.PermissionID)
 		if len(implied) > 0 {
 			if err := uc.inheritance.CreateMany(ctx, id, implied); err != nil {
 				return err
