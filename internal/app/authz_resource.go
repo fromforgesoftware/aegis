@@ -6,6 +6,7 @@ import (
 	"github.com/fromforgesoftware/go-kit/application/repository"
 	"github.com/fromforgesoftware/go-kit/application/usecase"
 	apierrors "github.com/fromforgesoftware/go-kit/errors"
+	"github.com/google/uuid"
 
 	"github.com/fromforgesoftware/aegis/internal/domain"
 )
@@ -78,6 +79,14 @@ func validateAuthzResource(r domain.AuthzResource) error {
 	}
 	if !r.Visibility().Valid() {
 		return apierrors.InvalidArgument("invalid visibility")
+	}
+	// A consumer-supplied id (registering a domain object under its own key)
+	// must be a uuid — the column is uuid-typed and the owner-implicit check
+	// compares it as one.
+	if id := r.ID(); id != "" {
+		if _, err := uuid.Parse(id); err != nil {
+			return apierrors.InvalidArgument("id must be a uuid")
+		}
 	}
 	return nil
 }

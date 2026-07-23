@@ -91,7 +91,9 @@ func (uc *bindingUsecase) Create(ctx context.Context, b domain.Binding) (domain.
 	if role.ResourceType() != res.ResourceType() {
 		return nil, apierrors.InvalidArgument("role resource_type does not match the resource's type")
 	}
-	if role.RealmID() != res.RealmID() {
+	// SYSTEM roles (realm-less) are bindable in every realm; a realm-scoped
+	// role must share the resource's realm.
+	if role.RealmID() != "" && role.RealmID() != res.RealmID() {
 		return nil, apierrors.InvalidArgument("role belongs to a different realm")
 	}
 	if err := uc.validateSubject(ctx, b, res.RealmID()); err != nil {

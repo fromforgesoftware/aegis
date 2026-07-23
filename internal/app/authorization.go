@@ -14,9 +14,13 @@ type AuthorizationProjectionRepository interface {
 	Refresh(ctx context.Context) error
 }
 
-// AuthorizationReader reads the effective_authorizations projection. Each
-// method is a single indexed lookup; the projection already encodes group
-// membership, role → permission, and hierarchy inheritance.
+// AuthorizationReader answers authorization reads. INVARIANT: effective
+// access = the effective_authorizations projection (bindings closure: group
+// membership, role → permission, hierarchy inheritance) ∪ the LIVE resource
+// owner (owner_account_id holds every permission of the resource's type,
+// consulted un-projected so it is never stale). Any consumer answering "who
+// can access X" must account for BOTH sources — listing bindings alone omits
+// the owner.
 type AuthorizationReader interface {
 	Exists(ctx context.Context, accountID, resourceID, permissionID string) (bool, error)
 	ListResourceIDs(ctx context.Context, accountID, permissionID string) ([]string, error)

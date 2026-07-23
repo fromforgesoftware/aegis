@@ -26,28 +26,40 @@ var roleFieldMapping = map[string]string{
 	fields.Kind:         "kind",
 }
 
+// roleEntity backs aegis.role. realm_id is a pointer: SYSTEM roles are
+// realm-less (NULL), and an empty string would fail the uuid column.
 type roleEntity struct {
 	postgres.Model
 
-	ERealmID      string `gorm:"column:realm_id;type:uuid"`
-	EName         string `gorm:"column:name"`
-	EResourceType string `gorm:"column:resource_type"`
-	EDescription  string `gorm:"column:description"`
-	EKind         string `gorm:"column:kind"`
+	ERealmID      *string `gorm:"column:realm_id;type:uuid"`
+	EName         string  `gorm:"column:name"`
+	EResourceType string  `gorm:"column:resource_type"`
+	EDescription  string  `gorm:"column:description"`
+	EKind         string  `gorm:"column:kind"`
+	EManagedBy    string  `gorm:"column:managed_by"`
 }
 
-func (e *roleEntity) TableName() string     { return "aegis.role" }
-func (e *roleEntity) Type() resource.Type   { return domain.ResourceTypeRole }
-func (e *roleEntity) RealmID() string       { return e.ERealmID }
+func (e *roleEntity) TableName() string   { return "aegis.role" }
+func (e *roleEntity) Type() resource.Type { return domain.ResourceTypeRole }
+func (e *roleEntity) RealmID() string {
+	if e.ERealmID == nil {
+		return ""
+	}
+	return *e.ERealmID
+}
 func (e *roleEntity) Name() string          { return e.EName }
 func (e *roleEntity) ResourceType() string  { return e.EResourceType }
 func (e *roleEntity) Description() string   { return e.EDescription }
 func (e *roleEntity) Kind() domain.RoleKind { return domain.RoleKind(e.EKind) }
 
 func roleToEntity(r domain.Role) *roleEntity {
+	var realm *string
+	if id := r.RealmID(); id != "" {
+		realm = &id
+	}
 	return &roleEntity{
 		Model:         postgres.ModelFromResource(r),
-		ERealmID:      r.RealmID(),
+		ERealmID:      realm,
 		EName:         r.Name(),
 		EResourceType: r.ResourceType(),
 		EDescription:  r.Description(),

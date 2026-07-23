@@ -79,6 +79,36 @@ bootstrap:
   adminPassword: ''
   clientId: foundry
   redirectUris: ''
+  # Organizations to seed, declaratively (rendered to JSON for the server).
+  # The admin owns them; the first is set as the admin's active org.
+  #
+  # orgs:
+  #   - name: Acme
+  #     slug: acme
+  #   - name: Globex
+  #     slug: globex
+  orgs: []
+
+# Declarative authz catalogs, provisioned Grafana-style: each entry declares a
+# resource type's permissions (with an implication tree) and SYSTEM roles
+# (with a composition tree). Rendered into a ConfigMap and reconciled at
+# startup — add/update/remove converge, and a checksum annotation rolls the
+# pods when this block changes, so editing values IS the deploy. Removing an
+# entry prunes it; pruning a role with live bindings is refused unless the
+# document sets force: true. References may be bare ("read") or qualified
+# ("strategies.read").
+#
+# catalogs:
+#   - resourceType: strategies
+#     permissions:
+#       read: {}
+#       write: { implies: [read] }
+#       delete: {}
+#     roles:
+#       reader: { permissions: [read] }
+#       editor: { composes: [reader], permissions: [write] }
+#       admin:  { composes: [editor], permissions: [delete] }
+catalogs: []
 
 resources:
   requests:

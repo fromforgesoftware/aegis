@@ -46,10 +46,16 @@ func AuthzResourceFromDTO(dto *AuthzResourceDTO) domain.AuthzResource {
 	if visibility == "" {
 		visibility = domain.VisibilityPrivate
 	}
-	return domain.NewAuthzResource(dto.RRealmID, dto.RResourceType,
+	opts := []domain.AuthzResourceOption{
 		domain.WithAuthzResourceOwnerAccountID(dto.ROwnerAccountID),
 		domain.WithAuthzResourceParentID(dto.RParentID),
 		domain.WithAuthzResourceInheritVia(dto.RInheritVia),
 		domain.WithAuthzResourceVisibility(visibility),
-	)
+	}
+	// A client-supplied id is honored: consumers register domain objects under
+	// their OWN id so both sides speak the same key (validated in the usecase).
+	if dto.ID() != "" {
+		opts = append(opts, domain.WithAuthzResourceID(dto.ID()))
+	}
+	return domain.NewAuthzResource(dto.RRealmID, dto.RResourceType, opts...)
 }

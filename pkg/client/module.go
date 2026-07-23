@@ -52,12 +52,13 @@ func Dial(cfg Config) (Client, func() error, error) {
 	}
 
 	var (
-		resource   ResourceAPI
-		binding    BindingAPI
-		role       RoleAPI
-		permission PermissionAPI
-		group      GroupAPI
-		authzAdmin AuthorizationAdminAPI
+		resource     ResourceAPI
+		binding      BindingAPI
+		role         RoleAPI
+		permission   PermissionAPI
+		group        GroupAPI
+		organization OrganizationAPI
+		authzAdmin   AuthorizationAdminAPI
 	)
 	if cfg.HTTPURL != "" {
 		rest, err := newRESTClientFromConfig(cfg)
@@ -70,12 +71,13 @@ func Dial(cfg Config) (Client, func() error, error) {
 		role = NewRoleHTTPClient(rest)
 		permission = NewPermissionHTTPClient(rest)
 		group = NewGroupHTTPClient(rest)
+		organization = NewOrganizationHTTPClient(rest)
 		authzAdmin = NewAuthorizationAdminHTTPClient(rest)
 	}
 
 	return NewClient(
 		admin, authx, oauth, identity, authorizer, mfa,
-		resource, binding, role, permission, group, authzAdmin,
+		resource, binding, role, permission, group, organization, authzAdmin,
 	), closer, nil
 }
 
@@ -134,6 +136,7 @@ func FxModule(name string, cfg Config) fx.Option {
 			fx.Annotate(NewRoleHTTPClient, fx.As(new(RoleAPI))),
 			fx.Annotate(NewPermissionHTTPClient, fx.As(new(PermissionAPI))),
 			fx.Annotate(NewGroupHTTPClient, fx.As(new(GroupAPI))),
+			fx.Annotate(NewOrganizationHTTPClient, fx.As(new(OrganizationAPI))),
 			fx.Annotate(NewAuthorizationAdminHTTPClient, fx.As(new(AuthorizationAdminAPI))),
 			fx.Annotate(NewClient, fx.As(new(Client))),
 		),

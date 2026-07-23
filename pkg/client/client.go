@@ -33,6 +33,7 @@ type Client interface {
 	RoleAPI() RoleAPI
 	PermissionAPI() PermissionAPI
 	GroupAPI() GroupAPI
+	OrganizationAPI() OrganizationAPI
 	AuthorizationAdminAPI() AuthorizationAdminAPI
 }
 
@@ -44,12 +45,13 @@ type client struct {
 	authorizer AuthorizerAPI
 	mfa        MFAAPI
 
-	resource   ResourceAPI
-	binding    BindingAPI
-	role       RoleAPI
-	permission PermissionAPI
-	group      GroupAPI
-	authzAdmin AuthorizationAdminAPI
+	resource     ResourceAPI
+	binding      BindingAPI
+	role         RoleAPI
+	permission   PermissionAPI
+	group        GroupAPI
+	organization OrganizationAPI
+	authzAdmin   AuthorizationAdminAPI
 }
 
 func NewClient(
@@ -64,21 +66,23 @@ func NewClient(
 	role RoleAPI,
 	permission PermissionAPI,
 	group GroupAPI,
+	organization OrganizationAPI,
 	authzAdmin AuthorizationAdminAPI,
 ) *client {
 	return &client{
-		admin:      admin,
-		authx:      authx,
-		oauth:      oauth,
-		identity:   identity,
-		authorizer: authorizer,
-		mfa:        mfa,
-		resource:   resource,
-		binding:    binding,
-		role:       role,
-		permission: permission,
-		group:      group,
-		authzAdmin: authzAdmin,
+		admin:        admin,
+		authx:        authx,
+		oauth:        oauth,
+		identity:     identity,
+		authorizer:   authorizer,
+		mfa:          mfa,
+		resource:     resource,
+		binding:      binding,
+		role:         role,
+		permission:   permission,
+		group:        group,
+		organization: organization,
+		authzAdmin:   authzAdmin,
 	}
 }
 
@@ -93,6 +97,7 @@ func (c *client) BindingAPI() BindingAPI                       { return c.bindin
 func (c *client) RoleAPI() RoleAPI                             { return c.role }
 func (c *client) PermissionAPI() PermissionAPI                 { return c.permission }
 func (c *client) GroupAPI() GroupAPI                           { return c.group }
+func (c *client) OrganizationAPI() OrganizationAPI             { return c.organization }
 func (c *client) AuthorizationAdminAPI() AuthorizationAdminAPI { return c.authzAdmin }
 
 // ResolvedAccount is the identity an upstream token maps to.

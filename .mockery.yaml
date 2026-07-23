@@ -35,6 +35,7 @@ packages:
       GroupMemberRepository:
       GroupUsecase:
       OrganizationRepository:
+      OrganizationUsecase:
       AccountActiveOrgRepository:
       Auditor:
       BindingRepository:
@@ -92,3 +93,12 @@ packages:
       SigningKeyService:
       ClientUsecase:
       OAuthUsecase:
+  github.com/fromforgesoftware/aegis/pkg/client:
+    config:
+      dir: 'pkg/client/clienttest'
+      outpkg: 'clienttest'
+    interfaces:
+      Client:
+      AuthorizerAPI:
+      ResourceAPI:
+      AuthorizationAdminAPI:

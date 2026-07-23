@@ -1,0 +1,14 @@
+{{- if .Values.catalogs }}
+# Declarative authz catalogs, reconciled by the server at startup
+# (AEGIS_CATALOGS_FILE). The deployment carries a checksum of this content so
+# a values change rolls the pods and re-applies the documents.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aegis.fullname" . }}-catalogs
+  labels:
+    {{- include "aegis.labels" . | nindent 4 }}
+data:
+  catalogs.json: |-
+{{ .Values.catalogs | toPrettyJson | indent 4 }}
+{{- end }}

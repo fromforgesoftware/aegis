@@ -11,8 +11,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/fromforgesoftware/go-kit/monitoring/logger"
-	"github.com/fromforgesoftware/go-kit/persistence"
 	outboxpg "github.com/fromforgesoftware/go-kit/outbox/postgres"
+	"github.com/fromforgesoftware/go-kit/persistence"
 	"github.com/fromforgesoftware/go-kit/persistence/gormdb"
 	kitgrpc "github.com/fromforgesoftware/go-kit/transport/grpc"
 	kitrest "github.com/fromforgesoftware/go-kit/transport/rest"
@@ -52,6 +52,7 @@ func FxModule() fx.Option {
 		usecasesFxModule(),
 		transportFxModule(),
 		fx.Invoke(registerBootstrap),
+		fx.Invoke(registerCatalogProvisioning),
 	)
 }
 
@@ -82,6 +83,7 @@ func repositoriesFxModule() fx.Option {
 			fx.Annotate(db.NewEffectiveAuthorizationRepository, fx.As(new(app.AuthorizationReader))),
 			fx.Annotate(db.NewPermissionInheritanceRepository, fx.As(new(app.PermissionInheritanceRepository))),
 			fx.Annotate(db.NewRoleCompositionRepository, fx.As(new(app.RoleCompositionRepository))),
+			fx.Annotate(db.NewCatalogRepository, fx.As(new(app.CatalogRepository))),
 			fx.Annotate(db.NewRoleEffectivePermissionRepository, fx.As(new(app.RoleEffectivePermissionRepository))),
 			fx.Annotate(db.NewAuthzVersionRepository, fx.As(new(app.VersionRepository))),
 			fx.Annotate(db.NewSessionStateRepository, fx.As(new(app.SessionStateRepository))),
@@ -126,6 +128,7 @@ func usecasesFxModule() fx.Option {
 			fx.Annotate(app.NewBindingUsecase, fx.As(new(app.BindingUsecase))),
 			fx.Annotate(app.NewRoleResolver, fx.As(new(app.RoleResolver))),
 			fx.Annotate(app.NewAuthorizationUsecase, fx.As(new(app.AuthorizationUsecase))),
+			fx.Annotate(app.NewCatalogUsecase, fx.As(new(app.CatalogUsecase))),
 			fx.Annotate(app.NewGrantSweeper, fx.As(new(app.GrantSweeper))),
 			fx.Annotate(app.NewAccountModerationUsecase, fx.As(new(app.AccountModerationUsecase))),
 			fx.Annotate(app.NewBanSweeper, fx.As(new(app.BanSweeper))),

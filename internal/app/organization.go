@@ -10,6 +10,7 @@ import (
 	"github.com/fromforgesoftware/go-kit/persistence"
 	"github.com/fromforgesoftware/go-kit/search"
 	"github.com/fromforgesoftware/go-kit/search/query"
+	"github.com/google/uuid"
 
 	"github.com/fromforgesoftware/aegis/internal/domain"
 	"github.com/fromforgesoftware/aegis/internal/fields"
@@ -121,7 +122,10 @@ func (uc *organizationUsecase) Create(ctx context.Context, org domain.Organizati
 
 	var out domain.Organization
 	err := uc.tx.Exec(ctx, func(ctx context.Context) error {
-		anchorOpts := []domain.AuthzResourceOption{}
+		// The org and its anchor share ONE minted id, so consumers can Check
+		// container permissions against the org id their tokens carry.
+		orgID := uuid.NewString()
+		anchorOpts := []domain.AuthzResourceOption{domain.WithAuthzResourceID(orgID)}
 		if ownerID != "" {
 			anchorOpts = append(anchorOpts, domain.WithAuthzResourceOwnerAccountID(ownerID))
 		}
@@ -130,6 +134,7 @@ func (uc *organizationUsecase) Create(ctx context.Context, org domain.Organizati
 			return err
 		}
 		created, err := uc.orgs.Create(ctx, domain.NewOrganization(realmID, org.Name(), org.Slug(),
+			domain.WithOrganizationID(orgID),
 			domain.WithOrganizationResourceID(anchor.ID()),
 			domain.WithOrganizationOwnerID(ownerID),
 			domain.WithOrganizationStatus(org.Status()),

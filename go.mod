@@ -3,7 +3,7 @@ module github.com/fromforgesoftware/aegis
 go 1.25.10
 
 require (
-	github.com/fromforgesoftware/go-kit v0.3.0
+	github.com/fromforgesoftware/go-kit v0.4.0
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/golang-migrate/migrate/v4 v4.19.1

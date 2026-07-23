@@ -192,7 +192,9 @@ func (uc *roleUsecase) ListComposition(ctx context.Context, roleID string) ([]do
 }
 
 func validateRole(r domain.Role) error {
-	if r.RealmID() == "" {
+	// SYSTEM roles are realm-less (defined once, bindable in every realm);
+	// CUSTOM roles are always realm-scoped.
+	if r.RealmID() == "" && r.Kind() != domain.RoleKindSystem {
 		return apierrors.InvalidArgument("realm_id is required")
 	}
 	if r.Name() == "" {

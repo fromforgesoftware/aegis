@@ -101,9 +101,17 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   value: {{ .Values.bootstrap.clientId | quote }}
 - name: AEGIS_BOOTSTRAP_CLIENT_REDIRECT_URIS
   value: {{ .Values.bootstrap.redirectUris | quote }}
+{{- if .Values.bootstrap.orgs }}
+- name: AEGIS_BOOTSTRAP_ORGS
+  value: {{ .Values.bootstrap.orgs | toJson | quote }}
+{{- end }}
 {{- end }}
 {{- if .Values.gatewaySecret }}
 - name: FORGE_GATEWAY_SECRET
   value: {{ .Values.gatewaySecret | quote }}
+{{- end }}
+{{- if .Values.catalogs }}
+- name: AEGIS_CATALOGS_FILE
+  value: /etc/aegis/catalogs/catalogs.json
 {{- end }}
 {{- end -}}
