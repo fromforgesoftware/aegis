@@ -45,4 +45,6 @@ const (
 	ActorID          = "actorId"
 	Action           = "action"
 	Slug             = "slug"
+	Key              = "key"
+	OrganizationID   = "organizationId"
 )
