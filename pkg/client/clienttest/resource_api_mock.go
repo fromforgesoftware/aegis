@@ -6,7 +6,6 @@ import (
 	context "context"
 
 	client "github.com/fromforgesoftware/aegis/pkg/client"
-
 	mock "github.com/stretchr/testify/mock"
 )
 

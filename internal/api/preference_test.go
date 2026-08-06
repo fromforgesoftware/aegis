@@ -76,8 +76,17 @@ func TestPreferenceMarshalsAsJSONAPI(t *testing.T) {
 func TestPreferenceSpecMarshalsAsJSONAPI(t *testing.T) {
 	t.Parallel()
 
-	specs := domain.PreferenceRegistry()
-	require.NotEmpty(t, specs)
+	specs := []domain.PreferenceSpec{
+		{
+			Key: "notify.account.email", Type: domain.PreferenceTypeBool, Default: "true",
+			OrgScoped: true,
+		},
+		{Key: "ui.locale", Type: domain.PreferenceTypeString, Default: "en-GB", Claim: domain.ClaimLocale},
+		{
+			Key: "ui.theme", Type: domain.PreferenceTypeEnum, Default: "auto",
+			Allowed: []string{"light", "dark", "auto"},
+		},
+	}
 
 	var buf bytes.Buffer
 	list := resource.ListResponseToDTO(api.PreferenceSpecToDTO)(
@@ -93,7 +102,6 @@ func TestPreferenceSpecMarshalsAsJSONAPI(t *testing.T) {
 				ValueType string   `json:"valueType"`
 				Default   string   `json:"default"`
 				Allowed   []string `json:"allowed"`
-				Write     string   `json:"write"`
 				OrgScoped bool     `json:"orgScoped"`
 				Claim     string   `json:"claim"`
 			} `json:"attributes"`

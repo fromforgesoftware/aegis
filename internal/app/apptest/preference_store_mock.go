@@ -5,6 +5,7 @@ package apptest
 import (
 	context "context"
 
+	domain "github.com/fromforgesoftware/aegis/internal/domain"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -81,6 +82,64 @@ func (_c *PreferenceStore_AccountPreferences_Call) RunAndReturn(run func(context
 	return _c
 }
 
+// CountValuesForKey provides a mock function with given fields: ctx, realmID, key
+func (_m *PreferenceStore) CountValuesForKey(ctx context.Context, realmID string, key string) (int64, error) {
+	ret := _m.Called(ctx, realmID, key)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountValuesForKey")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (int64, error)); ok {
+		return rf(ctx, realmID, key)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) int64); ok {
+		r0 = rf(ctx, realmID, key)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, realmID, key)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// PreferenceStore_CountValuesForKey_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountValuesForKey'
+type PreferenceStore_CountValuesForKey_Call struct {
+	*mock.Call
+}
+
+// CountValuesForKey is a helper method to define mock.On call
+//   - ctx context.Context
+//   - realmID string
+//   - key string
+func (_e *PreferenceStore_Expecter) CountValuesForKey(ctx interface{}, realmID interface{}, key interface{}) *PreferenceStore_CountValuesForKey_Call {
+	return &PreferenceStore_CountValuesForKey_Call{Call: _e.mock.On("CountValuesForKey", ctx, realmID, key)}
+}
+
+func (_c *PreferenceStore_CountValuesForKey_Call) Run(run func(ctx context.Context, realmID string, key string)) *PreferenceStore_CountValuesForKey_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *PreferenceStore_CountValuesForKey_Call) Return(_a0 int64, _a1 error) *PreferenceStore_CountValuesForKey_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *PreferenceStore_CountValuesForKey_Call) RunAndReturn(run func(context.Context, string, string) (int64, error)) *PreferenceStore_CountValuesForKey_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteAccountPreferences provides a mock function with given fields: ctx, accountID, keys
 func (_m *PreferenceStore) DeleteAccountPreferences(ctx context.Context, accountID string, keys []string) error {
 	ret := _m.Called(ctx, accountID, keys)
@@ -125,6 +184,114 @@ func (_c *PreferenceStore_DeleteAccountPreferences_Call) Return(_a0 error) *Pref
 }
 
 func (_c *PreferenceStore_DeleteAccountPreferences_Call) RunAndReturn(run func(context.Context, string, []string) error) *PreferenceStore_DeleteAccountPreferences_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteSpecs provides a mock function with given fields: ctx, realmID, keys
+func (_m *PreferenceStore) DeleteSpecs(ctx context.Context, realmID string, keys []string) error {
+	ret := _m.Called(ctx, realmID, keys)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteSpecs")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []string) error); ok {
+		r0 = rf(ctx, realmID, keys)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// PreferenceStore_DeleteSpecs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteSpecs'
+type PreferenceStore_DeleteSpecs_Call struct {
+	*mock.Call
+}
+
+// DeleteSpecs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - realmID string
+//   - keys []string
+func (_e *PreferenceStore_Expecter) DeleteSpecs(ctx interface{}, realmID interface{}, keys interface{}) *PreferenceStore_DeleteSpecs_Call {
+	return &PreferenceStore_DeleteSpecs_Call{Call: _e.mock.On("DeleteSpecs", ctx, realmID, keys)}
+}
+
+func (_c *PreferenceStore_DeleteSpecs_Call) Run(run func(ctx context.Context, realmID string, keys []string)) *PreferenceStore_DeleteSpecs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].([]string))
+	})
+	return _c
+}
+
+func (_c *PreferenceStore_DeleteSpecs_Call) Return(_a0 error) *PreferenceStore_DeleteSpecs_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *PreferenceStore_DeleteSpecs_Call) RunAndReturn(run func(context.Context, string, []string) error) *PreferenceStore_DeleteSpecs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ManagedSpecKeys provides a mock function with given fields: ctx, realmID, managedBy
+func (_m *PreferenceStore) ManagedSpecKeys(ctx context.Context, realmID string, managedBy string) ([]string, error) {
+	ret := _m.Called(ctx, realmID, managedBy)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ManagedSpecKeys")
+	}
+
+	var r0 []string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]string, error)); ok {
+		return rf(ctx, realmID, managedBy)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []string); ok {
+		r0 = rf(ctx, realmID, managedBy)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, realmID, managedBy)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// PreferenceStore_ManagedSpecKeys_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ManagedSpecKeys'
+type PreferenceStore_ManagedSpecKeys_Call struct {
+	*mock.Call
+}
+
+// ManagedSpecKeys is a helper method to define mock.On call
+//   - ctx context.Context
+//   - realmID string
+//   - managedBy string
+func (_e *PreferenceStore_Expecter) ManagedSpecKeys(ctx interface{}, realmID interface{}, managedBy interface{}) *PreferenceStore_ManagedSpecKeys_Call {
+	return &PreferenceStore_ManagedSpecKeys_Call{Call: _e.mock.On("ManagedSpecKeys", ctx, realmID, managedBy)}
+}
+
+func (_c *PreferenceStore_ManagedSpecKeys_Call) Run(run func(ctx context.Context, realmID string, managedBy string)) *PreferenceStore_ManagedSpecKeys_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *PreferenceStore_ManagedSpecKeys_Call) Return(_a0 []string, _a1 error) *PreferenceStore_ManagedSpecKeys_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *PreferenceStore_ManagedSpecKeys_Call) RunAndReturn(run func(context.Context, string, string) ([]string, error)) *PreferenceStore_ManagedSpecKeys_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -189,17 +356,17 @@ func (_c *PreferenceStore_OrganizationPreferences_Call) RunAndReturn(run func(co
 	return _c
 }
 
-// SetAccountPreferences provides a mock function with given fields: ctx, accountID, values
-func (_m *PreferenceStore) SetAccountPreferences(ctx context.Context, accountID string, values map[string]string) error {
-	ret := _m.Called(ctx, accountID, values)
+// SetAccountPreferences provides a mock function with given fields: ctx, realmID, accountID, values
+func (_m *PreferenceStore) SetAccountPreferences(ctx context.Context, realmID string, accountID string, values map[string]string) error {
+	ret := _m.Called(ctx, realmID, accountID, values)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SetAccountPreferences")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, map[string]string) error); ok {
-		r0 = rf(ctx, accountID, values)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, map[string]string) error); ok {
+		r0 = rf(ctx, realmID, accountID, values)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -214,15 +381,16 @@ type PreferenceStore_SetAccountPreferences_Call struct {
 
 // SetAccountPreferences is a helper method to define mock.On call
 //   - ctx context.Context
+//   - realmID string
 //   - accountID string
 //   - values map[string]string
-func (_e *PreferenceStore_Expecter) SetAccountPreferences(ctx interface{}, accountID interface{}, values interface{}) *PreferenceStore_SetAccountPreferences_Call {
-	return &PreferenceStore_SetAccountPreferences_Call{Call: _e.mock.On("SetAccountPreferences", ctx, accountID, values)}
+func (_e *PreferenceStore_Expecter) SetAccountPreferences(ctx interface{}, realmID interface{}, accountID interface{}, values interface{}) *PreferenceStore_SetAccountPreferences_Call {
+	return &PreferenceStore_SetAccountPreferences_Call{Call: _e.mock.On("SetAccountPreferences", ctx, realmID, accountID, values)}
 }
 
-func (_c *PreferenceStore_SetAccountPreferences_Call) Run(run func(ctx context.Context, accountID string, values map[string]string)) *PreferenceStore_SetAccountPreferences_Call {
+func (_c *PreferenceStore_SetAccountPreferences_Call) Run(run func(ctx context.Context, realmID string, accountID string, values map[string]string)) *PreferenceStore_SetAccountPreferences_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(map[string]string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(map[string]string))
 	})
 	return _c
 }
@@ -232,22 +400,22 @@ func (_c *PreferenceStore_SetAccountPreferences_Call) Return(_a0 error) *Prefere
 	return _c
 }
 
-func (_c *PreferenceStore_SetAccountPreferences_Call) RunAndReturn(run func(context.Context, string, map[string]string) error) *PreferenceStore_SetAccountPreferences_Call {
+func (_c *PreferenceStore_SetAccountPreferences_Call) RunAndReturn(run func(context.Context, string, string, map[string]string) error) *PreferenceStore_SetAccountPreferences_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// SetOrganizationPreferences provides a mock function with given fields: ctx, orgID, values
-func (_m *PreferenceStore) SetOrganizationPreferences(ctx context.Context, orgID string, values map[string]string) error {
-	ret := _m.Called(ctx, orgID, values)
+// SetOrganizationPreferences provides a mock function with given fields: ctx, realmID, orgID, values
+func (_m *PreferenceStore) SetOrganizationPreferences(ctx context.Context, realmID string, orgID string, values map[string]string) error {
+	ret := _m.Called(ctx, realmID, orgID, values)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SetOrganizationPreferences")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, map[string]string) error); ok {
-		r0 = rf(ctx, orgID, values)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, map[string]string) error); ok {
+		r0 = rf(ctx, realmID, orgID, values)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -262,15 +430,16 @@ type PreferenceStore_SetOrganizationPreferences_Call struct {
 
 // SetOrganizationPreferences is a helper method to define mock.On call
 //   - ctx context.Context
+//   - realmID string
 //   - orgID string
 //   - values map[string]string
-func (_e *PreferenceStore_Expecter) SetOrganizationPreferences(ctx interface{}, orgID interface{}, values interface{}) *PreferenceStore_SetOrganizationPreferences_Call {
-	return &PreferenceStore_SetOrganizationPreferences_Call{Call: _e.mock.On("SetOrganizationPreferences", ctx, orgID, values)}
+func (_e *PreferenceStore_Expecter) SetOrganizationPreferences(ctx interface{}, realmID interface{}, orgID interface{}, values interface{}) *PreferenceStore_SetOrganizationPreferences_Call {
+	return &PreferenceStore_SetOrganizationPreferences_Call{Call: _e.mock.On("SetOrganizationPreferences", ctx, realmID, orgID, values)}
 }
 
-func (_c *PreferenceStore_SetOrganizationPreferences_Call) Run(run func(ctx context.Context, orgID string, values map[string]string)) *PreferenceStore_SetOrganizationPreferences_Call {
+func (_c *PreferenceStore_SetOrganizationPreferences_Call) Run(run func(ctx context.Context, realmID string, orgID string, values map[string]string)) *PreferenceStore_SetOrganizationPreferences_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(map[string]string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(map[string]string))
 	})
 	return _c
 }
@@ -280,7 +449,115 @@ func (_c *PreferenceStore_SetOrganizationPreferences_Call) Return(_a0 error) *Pr
 	return _c
 }
 
-func (_c *PreferenceStore_SetOrganizationPreferences_Call) RunAndReturn(run func(context.Context, string, map[string]string) error) *PreferenceStore_SetOrganizationPreferences_Call {
+func (_c *PreferenceStore_SetOrganizationPreferences_Call) RunAndReturn(run func(context.Context, string, string, map[string]string) error) *PreferenceStore_SetOrganizationPreferences_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Specs provides a mock function with given fields: ctx, realmID
+func (_m *PreferenceStore) Specs(ctx context.Context, realmID string) (map[string]domain.PreferenceSpec, error) {
+	ret := _m.Called(ctx, realmID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Specs")
+	}
+
+	var r0 map[string]domain.PreferenceSpec
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (map[string]domain.PreferenceSpec, error)); ok {
+		return rf(ctx, realmID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) map[string]domain.PreferenceSpec); ok {
+		r0 = rf(ctx, realmID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]domain.PreferenceSpec)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, realmID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// PreferenceStore_Specs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Specs'
+type PreferenceStore_Specs_Call struct {
+	*mock.Call
+}
+
+// Specs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - realmID string
+func (_e *PreferenceStore_Expecter) Specs(ctx interface{}, realmID interface{}) *PreferenceStore_Specs_Call {
+	return &PreferenceStore_Specs_Call{Call: _e.mock.On("Specs", ctx, realmID)}
+}
+
+func (_c *PreferenceStore_Specs_Call) Run(run func(ctx context.Context, realmID string)) *PreferenceStore_Specs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *PreferenceStore_Specs_Call) Return(_a0 map[string]domain.PreferenceSpec, _a1 error) *PreferenceStore_Specs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *PreferenceStore_Specs_Call) RunAndReturn(run func(context.Context, string) (map[string]domain.PreferenceSpec, error)) *PreferenceStore_Specs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpsertSpecs provides a mock function with given fields: ctx, realmID, managedBy, specs
+func (_m *PreferenceStore) UpsertSpecs(ctx context.Context, realmID string, managedBy string, specs []domain.PreferenceSpec) error {
+	ret := _m.Called(ctx, realmID, managedBy, specs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpsertSpecs")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []domain.PreferenceSpec) error); ok {
+		r0 = rf(ctx, realmID, managedBy, specs)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// PreferenceStore_UpsertSpecs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpsertSpecs'
+type PreferenceStore_UpsertSpecs_Call struct {
+	*mock.Call
+}
+
+// UpsertSpecs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - realmID string
+//   - managedBy string
+//   - specs []domain.PreferenceSpec
+func (_e *PreferenceStore_Expecter) UpsertSpecs(ctx interface{}, realmID interface{}, managedBy interface{}, specs interface{}) *PreferenceStore_UpsertSpecs_Call {
+	return &PreferenceStore_UpsertSpecs_Call{Call: _e.mock.On("UpsertSpecs", ctx, realmID, managedBy, specs)}
+}
+
+func (_c *PreferenceStore_UpsertSpecs_Call) Run(run func(ctx context.Context, realmID string, managedBy string, specs []domain.PreferenceSpec)) *PreferenceStore_UpsertSpecs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]domain.PreferenceSpec))
+	})
+	return _c
+}
+
+func (_c *PreferenceStore_UpsertSpecs_Call) Return(_a0 error) *PreferenceStore_UpsertSpecs_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *PreferenceStore_UpsertSpecs_Call) RunAndReturn(run func(context.Context, string, string, []domain.PreferenceSpec) error) *PreferenceStore_UpsertSpecs_Call {
 	_c.Call.Return(run)
 	return _c
 }

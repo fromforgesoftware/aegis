@@ -53,6 +53,7 @@ func FxModule() fx.Option {
 		transportFxModule(),
 		fx.Invoke(registerBootstrap),
 		fx.Invoke(registerCatalogProvisioning),
+		fx.Invoke(registerPreferenceProvisioning),
 	)
 }
 

@@ -114,4 +114,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 - name: AEGIS_CATALOGS_FILE
   value: /etc/aegis/catalogs/catalogs.json
 {{- end }}
+{{- if .Values.preferences }}
+- name: AEGIS_PREFERENCES_FILE
+  value: /etc/aegis/preferences/preferences.json
+{{- end }}
 {{- end -}}

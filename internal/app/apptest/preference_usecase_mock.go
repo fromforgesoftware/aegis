@@ -22,76 +22,65 @@ func (_m *PreferenceUsecase) EXPECT() *PreferenceUsecase_Expecter {
 	return &PreferenceUsecase_Expecter{mock: &_m.Mock}
 }
 
-// Claims provides a mock function with given fields: ctx, accountID
-func (_m *PreferenceUsecase) Claims(ctx context.Context, accountID string) (map[string]string, error) {
-	ret := _m.Called(ctx, accountID)
+// Apply provides a mock function with given fields: ctx, realmID, doc
+func (_m *PreferenceUsecase) Apply(ctx context.Context, realmID string, doc domain.PreferenceDocument) error {
+	ret := _m.Called(ctx, realmID, doc)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Claims")
+		panic("no return value specified for Apply")
 	}
 
-	var r0 map[string]string
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (map[string]string, error)); ok {
-		return rf(ctx, accountID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) map[string]string); ok {
-		r0 = rf(ctx, accountID)
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, domain.PreferenceDocument) error); ok {
+		r0 = rf(ctx, realmID, doc)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(map[string]string)
-		}
+		r0 = ret.Error(0)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, accountID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return r0
 }
 
-// PreferenceUsecase_Claims_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Claims'
-type PreferenceUsecase_Claims_Call struct {
+// PreferenceUsecase_Apply_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Apply'
+type PreferenceUsecase_Apply_Call struct {
 	*mock.Call
 }
 
-// Claims is a helper method to define mock.On call
+// Apply is a helper method to define mock.On call
 //   - ctx context.Context
-//   - accountID string
-func (_e *PreferenceUsecase_Expecter) Claims(ctx interface{}, accountID interface{}) *PreferenceUsecase_Claims_Call {
-	return &PreferenceUsecase_Claims_Call{Call: _e.mock.On("Claims", ctx, accountID)}
+//   - realmID string
+//   - doc domain.PreferenceDocument
+func (_e *PreferenceUsecase_Expecter) Apply(ctx interface{}, realmID interface{}, doc interface{}) *PreferenceUsecase_Apply_Call {
+	return &PreferenceUsecase_Apply_Call{Call: _e.mock.On("Apply", ctx, realmID, doc)}
 }
 
-func (_c *PreferenceUsecase_Claims_Call) Run(run func(ctx context.Context, accountID string)) *PreferenceUsecase_Claims_Call {
+func (_c *PreferenceUsecase_Apply_Call) Run(run func(ctx context.Context, realmID string, doc domain.PreferenceDocument)) *PreferenceUsecase_Apply_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(domain.PreferenceDocument))
 	})
 	return _c
 }
 
-func (_c *PreferenceUsecase_Claims_Call) Return(_a0 map[string]string, _a1 error) *PreferenceUsecase_Claims_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *PreferenceUsecase_Apply_Call) Return(_a0 error) *PreferenceUsecase_Apply_Call {
+	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *PreferenceUsecase_Claims_Call) RunAndReturn(run func(context.Context, string) (map[string]string, error)) *PreferenceUsecase_Claims_Call {
+func (_c *PreferenceUsecase_Apply_Call) RunAndReturn(run func(context.Context, string, domain.PreferenceDocument) error) *PreferenceUsecase_Apply_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// ResetForAccount provides a mock function with given fields: ctx, accountID, keys
-func (_m *PreferenceUsecase) ResetForAccount(ctx context.Context, accountID string, keys []string) error {
-	ret := _m.Called(ctx, accountID, keys)
+// ResetForAccount provides a mock function with given fields: ctx, realmID, accountID, keys
+func (_m *PreferenceUsecase) ResetForAccount(ctx context.Context, realmID string, accountID string, keys []string) error {
+	ret := _m.Called(ctx, realmID, accountID, keys)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ResetForAccount")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []string) error); ok {
-		r0 = rf(ctx, accountID, keys)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []string) error); ok {
+		r0 = rf(ctx, realmID, accountID, keys)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -106,15 +95,16 @@ type PreferenceUsecase_ResetForAccount_Call struct {
 
 // ResetForAccount is a helper method to define mock.On call
 //   - ctx context.Context
+//   - realmID string
 //   - accountID string
 //   - keys []string
-func (_e *PreferenceUsecase_Expecter) ResetForAccount(ctx interface{}, accountID interface{}, keys interface{}) *PreferenceUsecase_ResetForAccount_Call {
-	return &PreferenceUsecase_ResetForAccount_Call{Call: _e.mock.On("ResetForAccount", ctx, accountID, keys)}
+func (_e *PreferenceUsecase_Expecter) ResetForAccount(ctx interface{}, realmID interface{}, accountID interface{}, keys interface{}) *PreferenceUsecase_ResetForAccount_Call {
+	return &PreferenceUsecase_ResetForAccount_Call{Call: _e.mock.On("ResetForAccount", ctx, realmID, accountID, keys)}
 }
 
-func (_c *PreferenceUsecase_ResetForAccount_Call) Run(run func(ctx context.Context, accountID string, keys []string)) *PreferenceUsecase_ResetForAccount_Call {
+func (_c *PreferenceUsecase_ResetForAccount_Call) Run(run func(ctx context.Context, realmID string, accountID string, keys []string)) *PreferenceUsecase_ResetForAccount_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]string))
 	})
 	return _c
 }
@@ -124,14 +114,14 @@ func (_c *PreferenceUsecase_ResetForAccount_Call) Return(_a0 error) *PreferenceU
 	return _c
 }
 
-func (_c *PreferenceUsecase_ResetForAccount_Call) RunAndReturn(run func(context.Context, string, []string) error) *PreferenceUsecase_ResetForAccount_Call {
+func (_c *PreferenceUsecase_ResetForAccount_Call) RunAndReturn(run func(context.Context, string, string, []string) error) *PreferenceUsecase_ResetForAccount_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// Resolve provides a mock function with given fields: ctx, accountID, keys
-func (_m *PreferenceUsecase) Resolve(ctx context.Context, accountID string, keys []string) ([]domain.Preference, error) {
-	ret := _m.Called(ctx, accountID, keys)
+// Resolve provides a mock function with given fields: ctx, realmID, accountID, keys
+func (_m *PreferenceUsecase) Resolve(ctx context.Context, realmID string, accountID string, keys []string) ([]domain.Preference, error) {
+	ret := _m.Called(ctx, realmID, accountID, keys)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Resolve")
@@ -139,19 +129,19 @@ func (_m *PreferenceUsecase) Resolve(ctx context.Context, accountID string, keys
 
 	var r0 []domain.Preference
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []string) ([]domain.Preference, error)); ok {
-		return rf(ctx, accountID, keys)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []string) ([]domain.Preference, error)); ok {
+		return rf(ctx, realmID, accountID, keys)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, []string) []domain.Preference); ok {
-		r0 = rf(ctx, accountID, keys)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []string) []domain.Preference); ok {
+		r0 = rf(ctx, realmID, accountID, keys)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]domain.Preference)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, []string) error); ok {
-		r1 = rf(ctx, accountID, keys)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, []string) error); ok {
+		r1 = rf(ctx, realmID, accountID, keys)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -166,15 +156,16 @@ type PreferenceUsecase_Resolve_Call struct {
 
 // Resolve is a helper method to define mock.On call
 //   - ctx context.Context
+//   - realmID string
 //   - accountID string
 //   - keys []string
-func (_e *PreferenceUsecase_Expecter) Resolve(ctx interface{}, accountID interface{}, keys interface{}) *PreferenceUsecase_Resolve_Call {
-	return &PreferenceUsecase_Resolve_Call{Call: _e.mock.On("Resolve", ctx, accountID, keys)}
+func (_e *PreferenceUsecase_Expecter) Resolve(ctx interface{}, realmID interface{}, accountID interface{}, keys interface{}) *PreferenceUsecase_Resolve_Call {
+	return &PreferenceUsecase_Resolve_Call{Call: _e.mock.On("Resolve", ctx, realmID, accountID, keys)}
 }
 
-func (_c *PreferenceUsecase_Resolve_Call) Run(run func(ctx context.Context, accountID string, keys []string)) *PreferenceUsecase_Resolve_Call {
+func (_c *PreferenceUsecase_Resolve_Call) Run(run func(ctx context.Context, realmID string, accountID string, keys []string)) *PreferenceUsecase_Resolve_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]string))
 	})
 	return _c
 }
@@ -184,22 +175,22 @@ func (_c *PreferenceUsecase_Resolve_Call) Return(_a0 []domain.Preference, _a1 er
 	return _c
 }
 
-func (_c *PreferenceUsecase_Resolve_Call) RunAndReturn(run func(context.Context, string, []string) ([]domain.Preference, error)) *PreferenceUsecase_Resolve_Call {
+func (_c *PreferenceUsecase_Resolve_Call) RunAndReturn(run func(context.Context, string, string, []string) ([]domain.Preference, error)) *PreferenceUsecase_Resolve_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// SetForAccount provides a mock function with given fields: ctx, accountID, values
-func (_m *PreferenceUsecase) SetForAccount(ctx context.Context, accountID string, values map[string]string) error {
-	ret := _m.Called(ctx, accountID, values)
+// SetForAccount provides a mock function with given fields: ctx, realmID, accountID, values
+func (_m *PreferenceUsecase) SetForAccount(ctx context.Context, realmID string, accountID string, values map[string]string) error {
+	ret := _m.Called(ctx, realmID, accountID, values)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SetForAccount")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, map[string]string) error); ok {
-		r0 = rf(ctx, accountID, values)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, map[string]string) error); ok {
+		r0 = rf(ctx, realmID, accountID, values)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -214,15 +205,16 @@ type PreferenceUsecase_SetForAccount_Call struct {
 
 // SetForAccount is a helper method to define mock.On call
 //   - ctx context.Context
+//   - realmID string
 //   - accountID string
 //   - values map[string]string
-func (_e *PreferenceUsecase_Expecter) SetForAccount(ctx interface{}, accountID interface{}, values interface{}) *PreferenceUsecase_SetForAccount_Call {
-	return &PreferenceUsecase_SetForAccount_Call{Call: _e.mock.On("SetForAccount", ctx, accountID, values)}
+func (_e *PreferenceUsecase_Expecter) SetForAccount(ctx interface{}, realmID interface{}, accountID interface{}, values interface{}) *PreferenceUsecase_SetForAccount_Call {
+	return &PreferenceUsecase_SetForAccount_Call{Call: _e.mock.On("SetForAccount", ctx, realmID, accountID, values)}
 }
 
-func (_c *PreferenceUsecase_SetForAccount_Call) Run(run func(ctx context.Context, accountID string, values map[string]string)) *PreferenceUsecase_SetForAccount_Call {
+func (_c *PreferenceUsecase_SetForAccount_Call) Run(run func(ctx context.Context, realmID string, accountID string, values map[string]string)) *PreferenceUsecase_SetForAccount_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(map[string]string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(map[string]string))
 	})
 	return _c
 }
@@ -232,22 +224,22 @@ func (_c *PreferenceUsecase_SetForAccount_Call) Return(_a0 error) *PreferenceUse
 	return _c
 }
 
-func (_c *PreferenceUsecase_SetForAccount_Call) RunAndReturn(run func(context.Context, string, map[string]string) error) *PreferenceUsecase_SetForAccount_Call {
+func (_c *PreferenceUsecase_SetForAccount_Call) RunAndReturn(run func(context.Context, string, string, map[string]string) error) *PreferenceUsecase_SetForAccount_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// SetForOrganization provides a mock function with given fields: ctx, orgID, values
-func (_m *PreferenceUsecase) SetForOrganization(ctx context.Context, orgID string, values map[string]string) error {
-	ret := _m.Called(ctx, orgID, values)
+// SetForOrganization provides a mock function with given fields: ctx, realmID, orgID, values
+func (_m *PreferenceUsecase) SetForOrganization(ctx context.Context, realmID string, orgID string, values map[string]string) error {
+	ret := _m.Called(ctx, realmID, orgID, values)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SetForOrganization")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, map[string]string) error); ok {
-		r0 = rf(ctx, orgID, values)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, map[string]string) error); ok {
+		r0 = rf(ctx, realmID, orgID, values)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -262,15 +254,16 @@ type PreferenceUsecase_SetForOrganization_Call struct {
 
 // SetForOrganization is a helper method to define mock.On call
 //   - ctx context.Context
+//   - realmID string
 //   - orgID string
 //   - values map[string]string
-func (_e *PreferenceUsecase_Expecter) SetForOrganization(ctx interface{}, orgID interface{}, values interface{}) *PreferenceUsecase_SetForOrganization_Call {
-	return &PreferenceUsecase_SetForOrganization_Call{Call: _e.mock.On("SetForOrganization", ctx, orgID, values)}
+func (_e *PreferenceUsecase_Expecter) SetForOrganization(ctx interface{}, realmID interface{}, orgID interface{}, values interface{}) *PreferenceUsecase_SetForOrganization_Call {
+	return &PreferenceUsecase_SetForOrganization_Call{Call: _e.mock.On("SetForOrganization", ctx, realmID, orgID, values)}
 }
 
-func (_c *PreferenceUsecase_SetForOrganization_Call) Run(run func(ctx context.Context, orgID string, values map[string]string)) *PreferenceUsecase_SetForOrganization_Call {
+func (_c *PreferenceUsecase_SetForOrganization_Call) Run(run func(ctx context.Context, realmID string, orgID string, values map[string]string)) *PreferenceUsecase_SetForOrganization_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(map[string]string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(map[string]string))
 	})
 	return _c
 }
@@ -280,7 +273,66 @@ func (_c *PreferenceUsecase_SetForOrganization_Call) Return(_a0 error) *Preferen
 	return _c
 }
 
-func (_c *PreferenceUsecase_SetForOrganization_Call) RunAndReturn(run func(context.Context, string, map[string]string) error) *PreferenceUsecase_SetForOrganization_Call {
+func (_c *PreferenceUsecase_SetForOrganization_Call) RunAndReturn(run func(context.Context, string, string, map[string]string) error) *PreferenceUsecase_SetForOrganization_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Specs provides a mock function with given fields: ctx, realmID
+func (_m *PreferenceUsecase) Specs(ctx context.Context, realmID string) ([]domain.PreferenceSpec, error) {
+	ret := _m.Called(ctx, realmID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Specs")
+	}
+
+	var r0 []domain.PreferenceSpec
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]domain.PreferenceSpec, error)); ok {
+		return rf(ctx, realmID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []domain.PreferenceSpec); ok {
+		r0 = rf(ctx, realmID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.PreferenceSpec)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, realmID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// PreferenceUsecase_Specs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Specs'
+type PreferenceUsecase_Specs_Call struct {
+	*mock.Call
+}
+
+// Specs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - realmID string
+func (_e *PreferenceUsecase_Expecter) Specs(ctx interface{}, realmID interface{}) *PreferenceUsecase_Specs_Call {
+	return &PreferenceUsecase_Specs_Call{Call: _e.mock.On("Specs", ctx, realmID)}
+}
+
+func (_c *PreferenceUsecase_Specs_Call) Run(run func(ctx context.Context, realmID string)) *PreferenceUsecase_Specs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *PreferenceUsecase_Specs_Call) Return(_a0 []domain.PreferenceSpec, _a1 error) *PreferenceUsecase_Specs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *PreferenceUsecase_Specs_Call) RunAndReturn(run func(context.Context, string) ([]domain.PreferenceSpec, error)) *PreferenceUsecase_Specs_Call {
 	_c.Call.Return(run)
 	return _c
 }

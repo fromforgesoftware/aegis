@@ -13,41 +13,32 @@ import (
 // ResourceTypePreference is the resource type for account preferences.
 const ResourceTypePreference resource.Type = "preferences"
 
-// Preferences are user-scoped, product-agnostic settings: the locale a person
-// reads in, the theme they prefer, which notification channels they want. They
-// live in aegis because aegis owns the account, and because the alternative is
-// every product in the platform storing the same person's locale separately and
-// disagreeing about it.
+// Preferences are user-scoped settings — the locale someone reads in, the theme they
+// prefer, which notification channels they want. They live in aegis because aegis owns
+// the account, and because the alternative is every product storing the same person's
+// locale separately and disagreeing about it.
 //
-// The design follows what identity providers converged on, and its one hard rule
-// is that the key space is DECLARED, not free-form:
+// The KEY SPACE IS DATA, declared per realm and reconciled from a config document. It is
+// deliberately not a list in this file: a key space compiled into the identity service
+// means a code change, two releases and a redeploy to add one setting, and it forces every
+// product to share one set of keys when products do not share their settings. Declaring it
+// per realm in each product's values.yaml makes adding a preference a configuration change.
 //
-//   - Keycloak's declarative user profile made schema-backed attributes the
-//     default and the permissive "any attribute" policy the exception, for
-//     security reasons. An open key-value bag on an account is a place for
-//     arbitrary caller-controlled data to accumulate.
-//   - Auth0's guidance on the same feature is blunter: store only what identity
-//     and access management needs, and keep detailed data in an external system.
+// This mirrors the authz catalog exactly — same ConfigMap-and-checksum delivery, same
+// managed_by ownership stamp, same gated prune — because it is the same problem: product
+// vocabulary that the platform stores but does not define.
 //
-// So Registry below is the whole of the key space. An unknown key is REFUSED
-// rather than stored, values are validated against a declared type, and both a
-// per-value and a per-account budget are enforced. What that buys, beyond not
-// becoming a junk drawer, is that the settings UI can be generated from the
-// registry instead of hard-coding the same enum twice on two sides of the wire.
-//
-// What does NOT belong here is anything product-specific — a default futures
-// contract, a chart interval, a column layout. Those are scoped to a product and
-// usually to a workspace too, and they belong to that product's own store. The
-// dividing line is "would a second product want this same value for this same
-// person": locale yes, default contract no.
+// The discipline a declared space still buys is what Keycloak and Auth0 both landed on:
+// Keycloak made schema-backed user attributes the default and "any attribute" the
+// exception, for security reasons, and Auth0's guidance is to store only what identity
+// needs. Declaring the vocabulary per product keeps that discipline without hardcoding it.
 
 // PreferenceType is the value domain of a preference.
 //
-// Values are stored and transported as STRINGS regardless of type. That is
-// deliberate: a typed column per preference means a migration every time a
-// preference is added, which is the failure mode that kills settings systems as a
-// product grows. The type here is what the API validates against, so the storage
-// stays uniform while the contract stays checked.
+// Values are stored and transported as STRINGS whatever their type. A typed column per
+// preference would mean a migration per preference, which is the failure this design
+// exists to avoid. The type is what the API validates against, so storage stays uniform
+// while the contract stays checked.
 type PreferenceType string
 
 const (
@@ -63,14 +54,13 @@ const (
 
 // PreferenceSource says where an effective value came from.
 //
-// It is returned alongside the value so a settings page can show "inherited from
-// the workspace" and offer a reset, rather than presenting an inherited default
-// as if the user had chosen it. Without this the UI cannot tell a deliberate
-// choice from a fallback, and "reset to default" becomes unimplementable.
+// Returned alongside the value so a settings page can show "inherited from the workspace"
+// and offer a reset, rather than presenting a fallback as a choice the user made. Without
+// it the UI cannot tell the two apart and "reset to default" is unimplementable.
 type PreferenceSource string
 
 const (
-	// PreferenceSourceDefault means no row exists; the value is the registry's.
+	// PreferenceSourceDefault means no row exists; the value is the spec's.
 	PreferenceSourceDefault PreferenceSource = "default"
 	// PreferenceSourceOrganization means the active organization set it.
 	PreferenceSourceOrganization PreferenceSource = "organization"
@@ -78,59 +68,51 @@ const (
 	PreferenceSourceAccount PreferenceSource = "account"
 )
 
-// PreferenceWritePolicy is who may change a key.
-type PreferenceWritePolicy string
-
+// Limits on what may be stored. Auth0 caps its equivalent feature and documents the caps
+// precisely; the lesson is to have them from the start rather than discover the need once
+// an account has accumulated megabytes.
 const (
-	// PreferenceWriteSelf means the account owning it may set it.
-	PreferenceWriteSelf PreferenceWritePolicy = "self"
-	// PreferenceWriteAdmin means only an organization administrator may set it,
-	// and only at organization scope. Keycloak's guidance to prefer the strictest
-	// policy per attribute is what this exists to express.
-	PreferenceWriteAdmin PreferenceWritePolicy = "admin"
-)
-
-// Limits on what may be stored. Auth0 caps its equivalent feature and documents
-// the caps precisely; the lesson is to have them from the start rather than
-// discover the need after an account has accumulated megabytes.
-const (
-	// MaxPreferenceValueLen is the ceiling on any single value, whatever its
-	// declared MaxLen.
+	// MaxPreferenceValueLen is the ceiling on any single value, whatever its declared
+	// MaxLen.
 	MaxPreferenceValueLen = 512
-	// MaxPreferencesPerAccount bounds how many rows one account may hold. It is
-	// comfortably above the registry size so the registry, not this, is the limit
-	// in practice — this is the backstop if the registry ever grows carelessly.
+	// MaxPreferencesPerAccount bounds how many rows one account may hold.
 	MaxPreferencesPerAccount = 128
+	// MaxPreferenceSpecsPerRealm bounds a config document, so a malformed values file
+	// cannot ask aegis to declare an unbounded key space.
+	MaxPreferenceSpecsPerRealm = 256
+	// maxPreferenceKeyLen bounds a key, which travels in a query string.
+	maxPreferenceKeyLen = 128
 )
 
 // PreferenceSpec declares one key.
+//
+// The json tags are the config contract: this struct is what a product writes under
+// `aegis.preferences.specs` in its values.yaml, so renaming a field is a breaking change
+// to every product's configuration.
 type PreferenceSpec struct {
-	// Key is namespaced, dot-separated: "ui.theme", "notify.account.email". The
-	// namespace is what lets a whole family move owner later without touching
-	// call sites — if `ui.*` ever belongs somewhere else, it moves as a unit.
-	Key string
-	// Type is what Validate checks the value against.
-	Type PreferenceType
-	// Default is the platform-wide fallback, returned with source "default".
-	Default string
+	// Key is namespaced and dot-separated: "ui.theme", "notify.account.email",
+	// "trading.chartInterval". The namespace is what lets a family move owner later
+	// without touching call sites.
+	Key string `json:"key"`
+	// Type is what Validate checks values against.
+	Type PreferenceType `json:"type"`
+	// Default is the fallback, returned with source "default".
+	Default string `json:"default"`
 	// Allowed is the permitted set for an enum, in display order.
-	Allowed []string
+	Allowed []string `json:"allowed,omitempty"`
 	// MaxLen bounds a string value; zero means MaxPreferenceValueLen.
-	MaxLen int
-	// Write is who may set it.
-	Write PreferenceWritePolicy
-	// OrgScoped marks a key an organization may set a default for. A key that is
-	// not org-scoped resolves from the registry straight to the account, skipping
-	// the organization layer.
-	OrgScoped bool
+	MaxLen int `json:"maxLen,omitempty"`
+	// OrgScoped marks a key an organization may set a default for. A key that is not
+	// org-scoped resolves from the spec's default straight to the account's override.
+	OrgScoped bool `json:"orgScoped,omitempty"`
 	// Claim is the OIDC standard claim this key populates, or empty.
 	//
-	// Only `locale` and `zoneinfo` are mapped, and only because OIDC Core section
-	// 5.1 already defines them as standard claims — so a relying party knows what
-	// they mean without asking us. Nothing else goes into a token: a token is
-	// cached and a preference changes, so mapping `ui.theme` into one would mean
-	// re-minting on every theme toggle and serving a stale theme until it expired.
-	Claim string
+	// Only `locale` and `zoneinfo` are legitimate, because OIDC Core 5.1 already defines
+	// them — a relying party knows what they mean without asking. Validate refuses
+	// anything else: a non-standard claim in a token is a private contract pretending to
+	// be a standard one, and a token is cached, so a preference mapped into one serves a
+	// stale value until it expires.
+	Claim string `json:"claim,omitempty"`
 }
 
 // limit is the effective maximum length for this spec's values.
@@ -169,130 +151,160 @@ func (s PreferenceSpec) Validate(value string) error {
 	case PreferenceTypeString:
 		// Length, checked above, is the only constraint on free text.
 	default:
-		return apierrors.InvalidArgument(fmt.Sprintf("preference %s has an unknown type %q", s.Key, s.Type))
+		return apierrors.InvalidArgument(
+			fmt.Sprintf("preference %s has an unknown type %q", s.Key, s.Type))
 	}
 	return nil
 }
 
-// The claim names this package maps, matching OIDC Core 5.1 exactly.
+// The only claim names a spec may map, matching OIDC Core 5.1.
 const (
-	claimLocale   = "locale"
-	claimZoneinfo = "zoneinfo"
+	ClaimLocale   = "locale"
+	ClaimZoneinfo = "zoneinfo"
 )
 
-// preferenceRegistry is the declared key space.
-//
-// Adding a key here is the only way to add a preference, and it is all that is
-// required: storage is uniform, the API validates from this, and a settings page
-// can render from it.
-var preferenceRegistry = func() map[string]PreferenceSpec {
-	specs := []PreferenceSpec{
-		{
-			// A BCP 47 tag. Free text rather than an enum because the set of
-			// shipped locales belongs to the product's translation catalogue, not
-			// to the identity service — enumerating it here would mean releasing
-			// aegis to add a language.
-			Key: "ui.locale", Type: PreferenceTypeString, Default: "en-GB", MaxLen: 35,
-			Write: PreferenceWriteSelf, OrgScoped: true, Claim: claimLocale,
-		},
-		{
-			// An IANA zone name. Empty means "not stated", which a client reads as
-			// "use the browser's" — a guessed default would be worse than none,
-			// because a wrong timezone silently shifts every displayed time.
-			Key: "ui.zoneinfo", Type: PreferenceTypeString, Default: "", MaxLen: 64,
-			Write: PreferenceWriteSelf, OrgScoped: true, Claim: claimZoneinfo,
-		},
-		{
-			Key: "ui.theme", Type: PreferenceTypeEnum, Default: "auto",
-			Allowed: []string{"light", "dark", "auto"}, Write: PreferenceWriteSelf,
-		},
-		{
-			Key: "ui.fontSize", Type: PreferenceTypeEnum, Default: "default",
-			Allowed: []string{"small", "default", "large"}, Write: PreferenceWriteSelf,
-		},
-		{
-			Key: "ui.timeFormat", Type: PreferenceTypeEnum, Default: "24",
-			Allowed: []string{"12", "24"}, Write: PreferenceWriteSelf, OrgScoped: true,
-		},
-		{
-			// ISO-8601 weekday numbering: Monday is 1, Sunday is 7. Stated because
-			// the alternative convention (Sunday 0) is equally common and the two
-			// silently disagree by a day.
-			Key: "ui.weekStart", Type: PreferenceTypeEnum, Default: "1",
-			Allowed: []string{"1", "2", "3", "4", "5", "6", "7"},
-			Write:   PreferenceWriteSelf, OrgScoped: true,
-		},
-		{
-			Key: "ui.menuExpanded", Type: PreferenceTypeBool, Default: "true",
-			Write: PreferenceWriteSelf,
-		},
+// validKey is the key grammar: dot-separated segments of letters and digits, each starting
+// lowercase. Constraining it keeps keys legible in a URL query string and stops a config
+// typo from declaring something like "ui.theme " that no client can ask for without
+// guessing the whitespace.
+func validKey(key string) error {
+	if key == "" {
+		return fmt.Errorf("a preference needs a key")
 	}
-	// Notification routing, one key per (category, channel). Flat keys rather than
-	// a nested document because a user toggling one channel must not rewrite the
-	// other eleven — that read-modify-write is exactly how two open tabs lose each
-	// other's changes.
-	for _, category := range []string{"account", "system"} {
-		for _, channel := range []string{"email", "slack", "sms", "push"} {
-			// Email defaults on: an account-security notification nobody receives
-			// is worse than one nobody wanted. Every other channel is opt-in.
-			def := "false"
-			if channel == "email" {
-				def = "true"
+	if len(key) > maxPreferenceKeyLen {
+		return fmt.Errorf("preference key %q is longer than %d characters", key, maxPreferenceKeyLen)
+	}
+	segments := strings.Split(key, ".")
+	if len(segments) < 2 {
+		return fmt.Errorf("preference key %q is not namespaced (expected something like ui.theme)", key)
+	}
+	for _, seg := range segments {
+		if seg == "" {
+			return fmt.Errorf("preference key %q has an empty segment", key)
+		}
+		for _, r := range seg {
+			isLetter := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+			isDigit := r >= '0' && r <= '9'
+			if !isLetter && !isDigit {
+				return fmt.Errorf("preference key %q contains %q; use letters, digits and dots", key, r)
 			}
-			specs = append(specs, PreferenceSpec{
-				Key:     fmt.Sprintf("notify.%s.%s", category, channel),
-				Type:    PreferenceTypeBool,
-				Default: def,
-				Write:   PreferenceWriteSelf,
-				// An organization may disable a channel platform-wide — the account
-				// cannot enable what the workspace has switched off, which the
-				// resolution order below enforces for admin-written keys.
-				OrgScoped: true,
-			})
+		}
+		if first := rune(seg[0]); first >= 'A' && first <= 'Z' {
+			return fmt.Errorf("preference key %q has a capitalised segment %q", key, seg)
+		}
+	}
+	return nil
+}
+
+// PreferenceDocument is one realm's declared key space, as it arrives from config.
+//
+// It carries Force for the same reason CatalogDocument does: removing a spec destroys
+// every value stored against it, so reconciliation refuses to prune a key accounts have
+// actually set unless the document says to. A slimmed document must not silently delete
+// people's settings, and neither must a typo.
+type PreferenceDocument struct {
+	// Realm names the realm this key space belongs to. Empty means the server's
+	// bootstrap realm, which is the single-product case and the common one.
+	Realm string `json:"realm,omitempty"`
+	// Force lists keys whose stored values may be destroyed when the key leaves the
+	// document. Anything not listed is protected by the prune gate.
+	Force []string `json:"force,omitempty"`
+	// Specs is the key space.
+	Specs []PreferenceSpec `json:"specs"`
+}
+
+// Forces reports whether the document authorises destroying this key's stored values.
+func (d PreferenceDocument) Forces(key string) bool {
+	for _, f := range d.Force {
+		if f == key {
+			return true
+		}
+	}
+	return false
+}
+
+// Validate checks the whole document before any of it is applied.
+//
+// All-or-nothing, and fatal at startup: provisioning treats an invalid document the way
+// the catalog does — fail readiness and halt the rollout, so the previous pods keep
+// serving the previous key space rather than half of a new one.
+func (d PreferenceDocument) Validate() error {
+	if len(d.Specs) == 0 {
+		return fmt.Errorf("preference document declares no specs")
+	}
+	if len(d.Specs) > MaxPreferenceSpecsPerRealm {
+		return fmt.Errorf("preference document declares %d specs, at most %d are allowed",
+			len(d.Specs), MaxPreferenceSpecsPerRealm)
+	}
+
+	seen := map[string]bool{}
+	for _, s := range d.Specs {
+		if err := validKey(s.Key); err != nil {
+			return err
+		}
+		if seen[s.Key] {
+			return fmt.Errorf("preference key %q is declared twice", s.Key)
+		}
+		seen[s.Key] = true
+
+		switch s.Type {
+		case PreferenceTypeString, PreferenceTypeBool, PreferenceTypeInt:
+			if len(s.Allowed) > 0 {
+				return fmt.Errorf("preference %s is a %s but lists allowed values", s.Key, s.Type)
+			}
+		case PreferenceTypeEnum:
+			if len(s.Allowed) == 0 {
+				return fmt.Errorf("preference %s is an enum but allows nothing", s.Key)
+			}
+		default:
+			return fmt.Errorf(
+				"preference %s has an unknown type %q (want string, bool, int or enum)", s.Key, s.Type)
+		}
+
+		// A default its own spec would reject means the very first read of an untouched
+		// account returns a value the API refuses on write.
+		if err := s.Validate(s.Default); err != nil {
+			return fmt.Errorf("preference %s has an illegal default: %w", s.Key, err)
+		}
+
+		if s.Claim != "" && s.Claim != ClaimLocale && s.Claim != ClaimZoneinfo {
+			return fmt.Errorf(
+				"preference %s maps claim %q; only the OIDC standard claims %q and %q may be mapped",
+				s.Key, s.Claim, ClaimLocale, ClaimZoneinfo)
 		}
 	}
 
-	out := make(map[string]PreferenceSpec, len(specs))
-	for _, s := range specs {
+	// A force entry naming a key still in the document is either a leftover from a
+	// completed prune or a misunderstanding of what force does. Either way it is a
+	// standing authorisation to destroy data sitting unnoticed in config.
+	for _, f := range d.Force {
+		if seen[f] {
+			return fmt.Errorf("force lists %q, which is still declared; remove one of the two", f)
+		}
+	}
+	return nil
+}
+
+// SpecsByKey indexes the document for resolution.
+func (d PreferenceDocument) SpecsByKey() map[string]PreferenceSpec {
+	out := make(map[string]PreferenceSpec, len(d.Specs))
+	for _, s := range d.Specs {
 		out[s.Key] = s
 	}
 	return out
-}()
-
-// PreferenceSpecFor returns the declaration for a key.
-func PreferenceSpecFor(key string) (PreferenceSpec, bool) {
-	s, ok := preferenceRegistry[key]
-	return s, ok
 }
 
-// PreferenceRegistry lists every declared key, ordered so a golden file and a
-// generated settings page are stable.
-func PreferenceRegistry() []PreferenceSpec {
-	out := make([]PreferenceSpec, 0, len(preferenceRegistry))
-	for _, s := range preferenceRegistry {
-		out = append(out, s)
+// Keys lists the document's keys, sorted.
+func (d PreferenceDocument) Keys() []string {
+	out := make([]string, 0, len(d.Specs))
+	for _, s := range d.Specs {
+		out = append(out, s.Key)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	sort.Strings(out)
 	return out
 }
 
-// PreferenceClaims maps resolved preferences onto the OIDC standard claims they
-// populate, skipping empty values so an unset zoneinfo does not become a claim
-// asserting the empty string.
-func PreferenceClaims(resolved map[string]string) map[string]string {
-	claims := map[string]string{}
-	for key, value := range resolved {
-		spec, ok := preferenceRegistry[key]
-		if !ok || spec.Claim == "" || value == "" {
-			continue
-		}
-		claims[spec.Claim] = value
-	}
-	return claims
-}
-
-// Preference is one resolved preference: the effective value and where it came
-// from.
+// Preference is one resolved preference: the effective value and where it came from.
 type Preference struct {
 	Key    string
 	Value  string
@@ -301,26 +313,27 @@ type Preference struct {
 
 // ResolvePreferences layers the three sources into the effective set.
 //
-// The order is registry default, then the organization's value, then the
-// account's own — each overriding the one before. Keys are taken from the
-// REGISTRY rather than from the rows, so a key that has never been written still
-// resolves to its default, and a row left behind by a removed key is ignored
-// rather than surfaced.
+// Spec default, then the organization's value, then the account's own — each overriding
+// the one before. The keys come from the SPECS rather than from the stored rows, so a key
+// nobody has written still resolves to its default.
 //
-// The one exception is an admin-written key: an organization's value wins over
-// the account's, because a workspace switching off a notification channel is a
-// policy the member must not be able to override. Everything else is a personal
-// preference and the person's own value is final.
-func ResolvePreferences(keys []string, orgValues, accountValues map[string]string) []Preference {
+// A stored value whose key has no spec cannot occur any more: the value tables reference
+// preference_spec with ON DELETE CASCADE, so the database will not hold one. The lookup is
+// still spec-first, which keeps the invariant true even for a spec removed between the
+// read and the resolve.
+func ResolvePreferences(
+	specs map[string]PreferenceSpec, keys []string, orgValues, accountValues map[string]string,
+) []Preference {
 	if len(keys) == 0 {
-		for _, spec := range PreferenceRegistry() {
-			keys = append(keys, spec.Key)
+		keys = make([]string, 0, len(specs))
+		for key := range specs {
+			keys = append(keys, key)
 		}
 	}
 
 	out := make([]Preference, 0, len(keys))
 	for _, key := range keys {
-		spec, ok := preferenceRegistry[key]
+		spec, ok := specs[key]
 		if !ok {
 			continue // an undeclared key has no effective value to report
 		}
@@ -328,7 +341,7 @@ func ResolvePreferences(keys []string, orgValues, accountValues map[string]strin
 		if v, ok := orgValues[key]; ok && spec.OrgScoped {
 			p.Value, p.Source = v, PreferenceSourceOrganization
 		}
-		if v, ok := accountValues[key]; ok && spec.Write == PreferenceWriteSelf {
+		if v, ok := accountValues[key]; ok {
 			p.Value, p.Source = v, PreferenceSourceAccount
 		}
 		out = append(out, p)

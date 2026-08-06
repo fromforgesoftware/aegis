@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -95,17 +96,28 @@ func (c *PreferenceController) requireSelf(next http.Handler) http.Handler {
 			writeJSONError(w, apierrors.Unauthorized("invalid token"))
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(auth.InjectTokenInCtx(r.Context(), tok)))
+		ctx := auth.InjectTokenInCtx(r.Context(), tok)
+		ctx = context.WithValue(ctx, preferenceRealmKey{}, realm.ID())
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// accountID reads the subject of the verified token.
-func accountIDFromCtx(r *http.Request) (string, bool) {
+// preferenceRealmKey carries the verified realm id from requireSelf to the handlers. A
+// private key type, so nothing outside this file can read or forge it.
+type preferenceRealmKey struct{}
+
+// callerFromCtx reads the verified realm and account. Both come from requireSelf, so a
+// handler that reaches this with either missing was routed without the middleware.
+func callerFromCtx(r *http.Request) (realmID, accountID string, ok bool) {
 	tok := auth.TokenFromCtx(r.Context())
 	if tok == nil {
-		return "", false
+		return "", "", false
 	}
-	return tok.Claims().Subject(), true
+	realmID, _ = r.Context().Value(preferenceRealmKey{}).(string)
+	if realmID == "" {
+		return "", "", false
+	}
+	return realmID, tok.Claims().Subject(), true
 }
 
 // requestedKeys parses ?keys=a,b,c. An absent parameter means the whole registry.
@@ -125,12 +137,12 @@ func requestedKeys(r *http.Request) []string {
 }
 
 func (c *PreferenceController) list(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := accountIDFromCtx(r)
+	realmID, accountID, ok := callerFromCtx(r)
 	if !ok {
 		writeJSONError(w, apierrors.Unauthorized("authentication required"))
 		return
 	}
-	resolved, err := c.preferences.Resolve(r.Context(), accountID, requestedKeys(r))
+	resolved, err := c.preferences.Resolve(r.Context(), realmID, accountID, requestedKeys(r))
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -156,7 +168,7 @@ type updateRequest struct {
 }
 
 func (c *PreferenceController) update(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := accountIDFromCtx(r)
+	realmID, accountID, ok := callerFromCtx(r)
 	if !ok {
 		writeJSONError(w, apierrors.Unauthorized("authentication required"))
 		return
@@ -191,7 +203,7 @@ func (c *PreferenceController) update(w http.ResponseWriter, r *http.Request) {
 		values[member.ID] = member.Attributes.Value
 	}
 
-	if err := c.preferences.SetForAccount(r.Context(), accountID, values); err != nil {
+	if err := c.preferences.SetForAccount(r.Context(), realmID, accountID, values); err != nil {
 		writeJSONError(w, err)
 		return
 	}
@@ -203,7 +215,7 @@ func (c *PreferenceController) update(w http.ResponseWriter, r *http.Request) {
 	for key := range values {
 		keys = append(keys, key)
 	}
-	resolved, err := c.preferences.Resolve(r.Context(), accountID, keys)
+	resolved, err := c.preferences.Resolve(r.Context(), realmID, accountID, keys)
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -225,7 +237,7 @@ func writePreferences(w http.ResponseWriter, resolved []domain.Preference) {
 }
 
 func (c *PreferenceController) reset(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := accountIDFromCtx(r)
+	realmID, accountID, ok := callerFromCtx(r)
 	if !ok {
 		writeJSONError(w, apierrors.Unauthorized("authentication required"))
 		return
@@ -239,7 +251,7 @@ func (c *PreferenceController) reset(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, apierrors.InvalidArgument("keys is required; name the preferences to reset"))
 		return
 	}
-	if err := c.preferences.ResetForAccount(r.Context(), accountID, keys); err != nil {
+	if err := c.preferences.ResetForAccount(r.Context(), realmID, accountID, keys); err != nil {
 		writeJSONError(w, err)
 		return
 	}
@@ -247,7 +259,16 @@ func (c *PreferenceController) reset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PreferenceController) registry(w http.ResponseWriter, r *http.Request) {
-	specs := domain.PreferenceRegistry()
+	realmID, _, ok := callerFromCtx(r)
+	if !ok {
+		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		return
+	}
+	specs, err := c.preferences.Specs(r.Context(), realmID)
+	if err != nil {
+		writeJSONError(w, err)
+		return
+	}
 	list := resource.ListResponseToDTO(api.PreferenceSpecToDTO)(
 		resource.NewListResponse(specs, len(specs)))
 	w.Header().Set("Content-Type", "application/vnd.api+json")

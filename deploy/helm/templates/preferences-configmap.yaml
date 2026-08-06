@@ -1,0 +1,16 @@
+{{- if .Values.preferences }}
+# Declarative preference key space, reconciled by the server at startup
+# (AEGIS_PREFERENCES_FILE). Rendered exactly like the authz catalog, for the same reason:
+# this is product vocabulary the platform stores but does not define, so it belongs in the
+# product's values rather than in aegis's code. The deployment carries a checksum of this
+# content so a values change rolls the pods and re-applies the document.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aegis.fullname" . }}-preferences
+  labels:
+    {{- include "aegis.labels" . | nindent 4 }}
+data:
+  preferences.json: |-
+{{ .Values.preferences | toPrettyJson | indent 4 }}
+{{- end }}

@@ -54,7 +54,6 @@ type PreferenceSpecDTO struct {
 	RValueType string   `jsonapi:"attr,valueType"`
 	RDefault   string   `jsonapi:"attr,default"`
 	RAllowed   []string `jsonapi:"attr,allowed,omitempty"`
-	RWrite     string   `jsonapi:"attr,write"`
 	ROrgScoped bool     `jsonapi:"attr,orgScoped"`
 	RClaim     string   `jsonapi:"attr,claim,omitempty"`
 }
@@ -65,7 +64,6 @@ func PreferenceSpecToDTO(s domain.PreferenceSpec) *PreferenceSpecDTO {
 		RValueType: string(s.Type),
 		RDefault:   s.Default,
 		RAllowed:   s.Allowed,
-		RWrite:     string(s.Write),
 		ROrgScoped: s.OrgScoped,
 		RClaim:     s.Claim,
 	}
