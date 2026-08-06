@@ -73,27 +73,27 @@ func (c *PreferenceController) requireSelf(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
-			writeJSONError(w, apierrors.Unauthorized("authentication required"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 			return
 		}
 		raw := strings.TrimPrefix(h, "Bearer ")
 		tok, err := auth.NewToken(raw, auth.TokenType("Bearer"), nil)
 		if err != nil {
-			writeJSONError(w, apierrors.Unauthorized("invalid token"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("invalid token"))
 			return
 		}
 		name := realmNameFromIssuer(tok.Claims().Get("iss"))
 		if name == "" {
-			writeJSONError(w, apierrors.Unauthorized("token is not realm-scoped"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("token is not realm-scoped"))
 			return
 		}
 		realm, err := c.realms.Get(r.Context(), app.RealmByName(name))
 		if err != nil || realm == nil {
-			writeJSONError(w, apierrors.Unauthorized("unknown realm"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("unknown realm"))
 			return
 		}
 		if _, err := c.tokens.VerifyAccessToken(r.Context(), realm.ID(), raw); err != nil {
-			writeJSONError(w, apierrors.Unauthorized("invalid token"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("invalid token"))
 			return
 		}
 		ctx := auth.InjectTokenInCtx(r.Context(), tok)
@@ -139,12 +139,12 @@ func requestedKeys(r *http.Request) []string {
 func (c *PreferenceController) list(w http.ResponseWriter, r *http.Request) {
 	realmID, accountID, ok := callerFromCtx(r)
 	if !ok {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return
 	}
 	resolved, err := c.preferences.Resolve(r.Context(), realmID, accountID, requestedKeys(r))
 	if err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	writePreferences(w, resolved)
@@ -170,41 +170,41 @@ type updateRequest struct {
 func (c *PreferenceController) update(w http.ResponseWriter, r *http.Request) {
 	realmID, accountID, ok := callerFromCtx(r)
 	if !ok {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return
 	}
 
 	var body updateRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxPreferenceBodyBytes)).Decode(&body); err != nil {
-		writeJSONError(w, apierrors.InvalidArgument("invalid request body"))
+		writeAPIError(r.Context(), w, apierrors.InvalidArgument("invalid request body"))
 		return
 	}
 	if len(body.Data) == 0 {
-		writeJSONError(w, apierrors.InvalidArgument("data must contain at least one preference"))
+		writeAPIError(r.Context(), w, apierrors.InvalidArgument("data must contain at least one preference"))
 		return
 	}
 
 	values := make(map[string]string, len(body.Data))
 	for _, member := range body.Data {
 		if member.Type != string(api.ResourceTypePreference) {
-			writeJSONError(w, apierrors.InvalidArgument("resource type must be preferences"))
+			writeAPIError(r.Context(), w, apierrors.InvalidArgument("resource type must be preferences"))
 			return
 		}
 		if member.ID == "" {
-			writeJSONError(w, apierrors.InvalidArgument("each preference needs an id (its key)"))
+			writeAPIError(r.Context(), w, apierrors.InvalidArgument("each preference needs an id (its key)"))
 			return
 		}
 		// A body naming the same key twice has no defined outcome — the last write
 		// would win by map iteration, which is not something a caller can predict.
 		if _, duplicate := values[member.ID]; duplicate {
-			writeJSONError(w, apierrors.InvalidArgument("preference "+member.ID+" appears twice"))
+			writeAPIError(r.Context(), w, apierrors.InvalidArgument("preference "+member.ID+" appears twice"))
 			return
 		}
 		values[member.ID] = member.Attributes.Value
 	}
 
 	if err := c.preferences.SetForAccount(r.Context(), realmID, accountID, values); err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 
@@ -217,7 +217,7 @@ func (c *PreferenceController) update(w http.ResponseWriter, r *http.Request) {
 	}
 	resolved, err := c.preferences.Resolve(r.Context(), realmID, accountID, keys)
 	if err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	writePreferences(w, resolved)
@@ -239,7 +239,7 @@ func writePreferences(w http.ResponseWriter, resolved []domain.Preference) {
 func (c *PreferenceController) reset(w http.ResponseWriter, r *http.Request) {
 	realmID, accountID, ok := callerFromCtx(r)
 	if !ok {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return
 	}
 	keys := requestedKeys(r)
@@ -248,11 +248,11 @@ func (c *PreferenceController) reset(w http.ResponseWriter, r *http.Request) {
 		// with no filter is "reset everything", and silently wiping every
 		// preference on a request that forgot its query string is not a mistake to
 		// make easy.
-		writeJSONError(w, apierrors.InvalidArgument("keys is required; name the preferences to reset"))
+		writeAPIError(r.Context(), w, apierrors.InvalidArgument("keys is required; name the preferences to reset"))
 		return
 	}
 	if err := c.preferences.ResetForAccount(r.Context(), realmID, accountID, keys); err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -261,12 +261,12 @@ func (c *PreferenceController) reset(w http.ResponseWriter, r *http.Request) {
 func (c *PreferenceController) registry(w http.ResponseWriter, r *http.Request) {
 	realmID, _, ok := callerFromCtx(r)
 	if !ok {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return
 	}
 	specs, err := c.preferences.Specs(r.Context(), realmID)
 	if err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	list := resource.ListResponseToDTO(api.PreferenceSpecToDTO)(

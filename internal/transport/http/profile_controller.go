@@ -53,27 +53,27 @@ func (c *ProfileController) requireSelf(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
-			writeJSONError(w, apierrors.Unauthorized("authentication required"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 			return
 		}
 		raw := strings.TrimPrefix(h, "Bearer ")
 		tok, err := auth.NewToken(raw, auth.TokenType("Bearer"), nil)
 		if err != nil {
-			writeJSONError(w, apierrors.Unauthorized("invalid token"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("invalid token"))
 			return
 		}
 		name := realmNameFromIssuer(tok.Claims().Get("iss"))
 		if name == "" {
-			writeJSONError(w, apierrors.Unauthorized("token is not realm-scoped"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("token is not realm-scoped"))
 			return
 		}
 		realm, err := c.realms.Get(r.Context(), app.RealmByName(name))
 		if err != nil || realm == nil {
-			writeJSONError(w, apierrors.Unauthorized("unknown realm"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("unknown realm"))
 			return
 		}
 		if _, err := c.tokens.VerifyAccessToken(r.Context(), realm.ID(), raw); err != nil {
-			writeJSONError(w, apierrors.Unauthorized("invalid token"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("invalid token"))
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(auth.InjectTokenInCtx(r.Context(), tok)))
@@ -91,12 +91,12 @@ func subjectFromCtx(r *http.Request) (string, bool) {
 func (c *ProfileController) read(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := subjectFromCtx(r)
 	if !ok {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return
 	}
 	acc, err := c.profiles.Profile(r.Context(), accountID)
 	if err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/vnd.api+json")
@@ -121,17 +121,17 @@ type profileUpdateRequest struct {
 func (c *ProfileController) update(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := subjectFromCtx(r)
 	if !ok {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return
 	}
 
 	var body profileUpdateRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxProfileBodyBytes)).Decode(&body); err != nil {
-		writeJSONError(w, apierrors.InvalidArgument("invalid request body"))
+		writeAPIError(r.Context(), w, apierrors.InvalidArgument("invalid request body"))
 		return
 	}
 	if body.Data.Type != "" && body.Data.Type != string(api.ResourceTypeProfile) {
-		writeJSONError(w, apierrors.InvalidArgument("resource type must be profiles"))
+		writeAPIError(r.Context(), w, apierrors.InvalidArgument("resource type must be profiles"))
 		return
 	}
 
@@ -141,7 +141,7 @@ func (c *ProfileController) update(w http.ResponseWriter, r *http.Request) {
 		FamilyName: body.Data.Attributes.FamilyName,
 	})
 	if err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/vnd.api+json")
@@ -165,17 +165,17 @@ type passwordRequest struct {
 func (c *ProfileController) changePassword(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := subjectFromCtx(r)
 	if !ok {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return
 	}
 
 	var body passwordRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxProfileBodyBytes)).Decode(&body); err != nil {
-		writeJSONError(w, apierrors.InvalidArgument("invalid request body"))
+		writeAPIError(r.Context(), w, apierrors.InvalidArgument("invalid request body"))
 		return
 	}
 	if body.Confirm != "" && body.Confirm != body.NewPassword {
-		writeJSONError(w, apierrors.InvalidArgument("the passwords do not match"))
+		writeAPIError(r.Context(), w, apierrors.InvalidArgument("the passwords do not match"))
 		return
 	}
 
@@ -184,7 +184,7 @@ func (c *ProfileController) changePassword(w http.ResponseWriter, r *http.Reques
 		CurrentPassword: body.CurrentPassword,
 		NewPassword:     body.NewPassword,
 	}); err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	// 204 with no body. Returning anything here risks echoing part of what was just sent, and

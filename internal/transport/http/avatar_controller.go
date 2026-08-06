@@ -67,27 +67,27 @@ func (c *AvatarController) requireRealmToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
-			writeJSONError(w, apierrors.Unauthorized("authentication required"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 			return
 		}
 		raw := strings.TrimPrefix(h, "Bearer ")
 		tok, err := auth.NewToken(raw, auth.TokenType("Bearer"), nil)
 		if err != nil {
-			writeJSONError(w, apierrors.Unauthorized("invalid token"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("invalid token"))
 			return
 		}
 		name := realmNameFromIssuer(tok.Claims().Get("iss"))
 		if name == "" {
-			writeJSONError(w, apierrors.Unauthorized("token is not realm-scoped"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("token is not realm-scoped"))
 			return
 		}
 		realm, err := c.realms.Get(r.Context(), app.RealmByName(name))
 		if err != nil || realm == nil {
-			writeJSONError(w, apierrors.Unauthorized("unknown realm"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("unknown realm"))
 			return
 		}
 		if _, err := c.tokens.VerifyAccessToken(r.Context(), realm.ID(), raw); err != nil {
-			writeJSONError(w, apierrors.Unauthorized("invalid token"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("invalid token"))
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(auth.InjectTokenInCtx(r.Context(), tok)))
@@ -97,7 +97,7 @@ func (c *AvatarController) requireRealmToken(next http.Handler) http.Handler {
 func readImage(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxUploadBytes))
 	if err != nil {
-		writeJSONError(w, apierrors.InvalidArgument("could not read image (max 1 MiB)"))
+		writeAPIError(r.Context(), w, apierrors.InvalidArgument("could not read image (max 1 MiB)"))
 		return nil, false
 	}
 	return body, true
@@ -106,7 +106,7 @@ func readImage(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 func (c *AvatarController) uploadMyAvatar(w http.ResponseWriter, r *http.Request) {
 	tok := auth.TokenFromCtx(r.Context())
 	if tok == nil {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return
 	}
 	image, ok := readImage(w, r)
@@ -114,7 +114,7 @@ func (c *AvatarController) uploadMyAvatar(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := c.avatars.SetAccountAvatar(r.Context(), tok.Claims().Subject(), image); err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -123,11 +123,11 @@ func (c *AvatarController) uploadMyAvatar(w http.ResponseWriter, r *http.Request
 func (c *AvatarController) deleteMyAvatar(w http.ResponseWriter, r *http.Request) {
 	tok := auth.TokenFromCtx(r.Context())
 	if tok == nil {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return
 	}
 	if err := c.avatars.DeleteAccountAvatar(r.Context(), tok.Claims().Subject()); err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -143,18 +143,18 @@ func (c *AvatarController) serveAccountAvatar(w http.ResponseWriter, r *http.Req
 func (c *AvatarController) requireOrgOwner(w http.ResponseWriter, r *http.Request) (string, bool) {
 	tok := auth.TokenFromCtx(r.Context())
 	if tok == nil {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return "", false
 	}
 	orgID := r.PathValue("id")
 	org, err := c.orgs.Get(r.Context(), search.WithQueryOpts(query.FilterBy(filter.OpEq, fields.ID, orgID)))
 	if err != nil || org == nil {
-		writeJSONError(w, apierrors.NotFound("organization", orgID))
+		writeAPIError(r.Context(), w, apierrors.NotFound("organization", orgID))
 		return "", false
 	}
 	owner := org.Owner()
 	if owner == nil || owner.ID() != tok.Claims().Subject() {
-		writeJSONError(w, apierrors.Forbidden("only the workspace owner can change the logo"))
+		writeAPIError(r.Context(), w, apierrors.Forbidden("only the workspace owner can change the logo"))
 		return "", false
 	}
 	return orgID, true
@@ -170,7 +170,7 @@ func (c *AvatarController) uploadOrgLogo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := c.avatars.SetOrgLogo(r.Context(), orgID, image); err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -182,7 +182,7 @@ func (c *AvatarController) deleteOrgLogo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := c.avatars.DeleteOrgLogo(r.Context(), orgID); err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -197,7 +197,7 @@ func (c *AvatarController) serveOrgLogo(w http.ResponseWriter, r *http.Request) 
 // requests via a content-hash ETag. A missing image is a 404.
 func serveImage(w http.ResponseWriter, r *http.Request, image []byte, contentType string, found bool, err error) {
 	if err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	if !found {

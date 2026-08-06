@@ -160,6 +160,12 @@ func (r *organizationRepo) Patch(ctx context.Context, opts ...repository.PatchOp
 		return nil, err
 	}
 	if err := r.PatchApply(ctx, q, &organizationEntity{}, p.PatchFields()).Error; err != nil {
+		// A renamed slug collides with UNIQUE (realm_id, slug) exactly as a created one does, so
+		// it gets the same 409 rather than a 500. Without this the settings form could only report
+		// "something went wrong" for the one error the user can actually fix.
+		if postgres.ErrorIs(err, pgUniqueViolation) {
+			return nil, apierrors.Conflict("that workspace slug is already taken in this realm")
+		}
 		return nil, postgres.NewErrUnknown(err)
 	}
 	var found []*organizationEntity

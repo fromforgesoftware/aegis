@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/fromforgesoftware/go-kit/application/repository"
@@ -48,24 +49,27 @@ func (c *OrganizationController) Routes(r kitrest.Router) {
 				openapi.Tags("tenancy"), openapi.Errors(400, 401, 409),
 			),
 		)))
-		r.Get("", kitrest.NewJsonApiListHandler(
-			c.orgs, api.OrganizationToDTO,
-			kitrest.HandlerWithOpenAPI(openapi.Summary("List organizations"), openapi.Tags("tenancy")),
-		))
+		// Listing the collection is authenticated and scoped to the caller's own memberships.
+		//
+		// It was anonymous, which returned every tenant in every realm — name, slug, owner
+		// account id and realm id — to anyone who could reach the route. There is no
+		// administrator identity in this service to authorize a genuine cross-tenant listing
+		// against, so the only honest answer it can give is the caller's own workspaces.
+		r.Get("", c.requireRealmToken(http.HandlerFunc(c.listMine)))
 		r.Route("/{id}", func(r kitrest.Router) {
-			r.Get("", kitrest.NewJsonApiGetHandler(
+			r.Get("", c.requireOrgMembership(kitrest.NewJsonApiGetHandler(
 				c.orgs, api.OrganizationToDTO, []query.ParseOpt{},
-				kitrest.HandlerWithOpenAPI(openapi.Summary("Get an organization"), openapi.Tags("tenancy"), openapi.Errors(404)),
-			))
-			r.Patch("", http.HandlerFunc(c.patch))
-			r.Delete("", kitrest.NewJsonApiDeleteHandler(
+				kitrest.HandlerWithOpenAPI(openapi.Summary("Get an organization"), openapi.Tags("tenancy"), openapi.Errors(401, 404)),
+			)))
+			r.Patch("", c.requireOrgOwner(http.HandlerFunc(c.patch)))
+			r.Delete("", c.requireOrgOwner(kitrest.NewJsonApiDeleteHandler(
 				c.orgs, repository.DeleteTypeSoft,
-				kitrest.HandlerWithOpenAPI(openapi.Summary("Delete an organization"), openapi.Tags("tenancy"), openapi.Errors(404)),
-			))
+				kitrest.HandlerWithOpenAPI(openapi.Summary("Delete an organization"), openapi.Tags("tenancy"), openapi.Errors(401, 403, 404)),
+			)))
 			r.Post("/activate", c.requireRealmToken(http.HandlerFunc(c.activate))) // self-service
-			r.Get("/members", http.HandlerFunc(c.listMembers))
-			r.Post("/members", http.HandlerFunc(c.addMember))
-			r.Delete("/members/{accountId}", http.HandlerFunc(c.removeMember))
+			r.Get("/members", c.requireOrgMembership(http.HandlerFunc(c.listMembers)))
+			r.Post("/members", c.requireOrgOwner(http.HandlerFunc(c.addMember)))
+			r.Delete("/members/{accountId}", c.requireOrgOwner(http.HandlerFunc(c.removeMember)))
 		})
 	})
 	r.Get("/api/me/organizations", c.requireRealmToken(http.HandlerFunc(c.listMine))) // self-service
@@ -80,31 +84,98 @@ func (c *OrganizationController) requireRealmToken(next http.Handler) http.Handl
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
-			writeJSONError(w, apierrors.Unauthorized("authentication required"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 			return
 		}
 		raw := strings.TrimPrefix(h, "Bearer ")
 		tok, err := auth.NewToken(raw, auth.TokenType("Bearer"), nil)
 		if err != nil {
-			writeJSONError(w, apierrors.Unauthorized("invalid token"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("invalid token"))
 			return
 		}
 		name := realmNameFromIssuer(tok.Claims().Get("iss"))
 		if name == "" {
-			writeJSONError(w, apierrors.Unauthorized("token is not realm-scoped"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("token is not realm-scoped"))
 			return
 		}
 		realm, err := c.realms.Get(r.Context(), app.RealmByName(name))
 		if err != nil || realm == nil {
-			writeJSONError(w, apierrors.Unauthorized("unknown realm"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("unknown realm"))
 			return
 		}
 		if _, err := c.tokens.VerifyAccessToken(r.Context(), realm.ID(), raw); err != nil {
-			writeJSONError(w, apierrors.Unauthorized("invalid token"))
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("invalid token"))
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(auth.InjectTokenInCtx(r.Context(), tok)))
 	})
+}
+
+// requireOrgOwner authenticates the caller and requires it to OWN the {id} organization.
+//
+// It gates every write: rename, re-slug, delete, and membership changes. The owner rule is not
+// invented here — it is the same rule the avatar controller already applies to the organization
+// logo, and a workspace whose name any member could change but whose logo only the owner could
+// would be incoherent.
+//
+// A missing organization is reported as 404 before ownership is considered, matching the avatar
+// controller. That does leak existence to an authenticated caller, which is a deliberate trade:
+// the alternative is answering 403 for ids that do not exist, which makes a genuine typo
+// indistinguishable from a permission problem.
+func (c *OrganizationController) requireOrgOwner(next http.Handler) http.Handler {
+	return c.requireRealmToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tok := auth.TokenFromCtx(r.Context())
+		if tok == nil {
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
+			return
+		}
+		orgID := r.PathValue("id")
+		org, err := c.orgs.Get(r.Context(),
+			search.WithQueryOpts(query.FilterBy(filter.OpEq, fields.ID, orgID)))
+		if err != nil || org == nil {
+			writeAPIError(r.Context(), w, apierrors.NotFound("organization", orgID))
+			return
+		}
+		owner := org.Owner()
+		if owner == nil || owner.ID() != tok.Claims().Subject() {
+			writeAPIError(r.Context(), w, apierrors.Forbidden("only the workspace owner can change this workspace"))
+			return
+		}
+		next.ServeHTTP(w, r)
+	}))
+}
+
+// requireOrgMembership authenticates the caller and requires it to BELONG to the {id}
+// organization, which the owner necessarily does.
+//
+// It gates the reads of a single organization and its member list. Membership is answered by
+// asking which organizations the caller belongs to rather than by a dedicated lookup: that is the
+// same question /api/me/organizations answers, so there is one implementation of "is this account
+// in this workspace" and no second one to disagree with it.
+func (c *OrganizationController) requireOrgMembership(next http.Handler) http.Handler {
+	return c.requireRealmToken(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tok := auth.TokenFromCtx(r.Context())
+		if tok == nil {
+			writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
+			return
+		}
+		orgID := r.PathValue("id")
+		mine, err := c.orgs.ListForAccount(r.Context(), tok.Claims().Subject())
+		if err != nil {
+			writeAPIError(r.Context(), w, err)
+			return
+		}
+		for _, org := range mine {
+			if org.ID() == orgID {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+		// 404 rather than 403: to someone who is not a member, a workspace they cannot see should
+		// not be confirmed to exist. Unlike the owner check above there is no typo to diagnose —
+		// the caller was never going to be allowed to read it either way.
+		writeAPIError(r.Context(), w, apierrors.NotFound("organization", orgID))
+	}))
 }
 
 func patchOrganization(id string, dto *api.OrganizationDTO) []repository.PatchOption {
@@ -123,19 +194,73 @@ func patchOrganization(id string, dto *api.OrganizationDTO) []repository.PatchOp
 	return opts
 }
 
+// maxOrgNameLen bounds a workspace name: long enough for any real one, short enough that the
+// column is not somewhere to store a paragraph.
+const maxOrgNameLen = 128
+
+// orgSlugPattern is a DNS-label-shaped slug: lowercase alphanumerics separated by single hyphens.
+//
+// A slug is an identifier, not a label — it is half of UNIQUE (realm_id, slug) and the natural
+// key for any future /w/{slug} route. Accepting "My Workspace" would put a space in a URL and let
+// two visually distinct slugs normalise to one.
+var orgSlugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+
+// validateOrgPatch rejects what the columns and the URL grammar cannot represent.
+//
+// The DTO's omitempty means an absent field arrives as "", which patchOrganization already treats
+// as "leave alone" — so each rule applies only to a field actually being set.
+func validateOrgPatch(dto *api.OrganizationDTO) error {
+	if dto.RName != "" {
+		name := strings.TrimSpace(dto.RName)
+		if name == "" {
+			return apierrors.InvalidArgument("name cannot be blank")
+		}
+		if len(name) > maxOrgNameLen {
+			return apierrors.InvalidArgument("name is longer than 128 characters")
+		}
+		// Control characters reach a UI as broken markup or an injected header line, and no real
+		// workspace name contains one. Same rule as an account's name parts.
+		for _, ch := range name {
+			if ch < 0x20 || ch == 0x7f {
+				return apierrors.InvalidArgument("name contains a control character")
+			}
+		}
+		dto.RName = name
+	}
+	if dto.RSlug != "" {
+		if len(dto.RSlug) > 63 {
+			return apierrors.InvalidArgument("slug is longer than 63 characters")
+		}
+		if !orgSlugPattern.MatchString(dto.RSlug) {
+			return apierrors.InvalidArgument(
+				"slug must be lowercase letters, digits and single hyphens, e.g. acme-trading")
+		}
+	}
+	if dto.RStatus != "" && !domain.OrgStatus(dto.RStatus).Valid() {
+		// Without this any string reaches the status column, and a typo like "ACITVE" would
+		// silently produce a workspace in a state nothing knows how to interpret.
+		return apierrors.InvalidArgument("status must be ACTIVE, SUSPENDED or ARCHIVED")
+	}
+	return nil
+}
+
 func (c *OrganizationController) patch(w http.ResponseWriter, r *http.Request) {
 	dto, err := kitrest.UnmarshalPayloadFromRequest[*api.OrganizationDTO](r)
 	if err != nil {
-		writeJSONError(w, apierrors.InvalidArgument("invalid request body"))
+		writeAPIError(r.Context(), w, apierrors.InvalidArgument("invalid request body"))
+		return
+	}
+	if err := validateOrgPatch(dto); err != nil {
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	patched, err := c.orgs.Patch(r.Context(), patchOrganization(r.PathValue("id"), dto)...)
 	if err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	if len(patched) == 0 {
-		writeJSONError(w, apierrors.NotFound("organization", r.PathValue("id")))
+		writeAPIError(r.Context(), w, apierrors.NotFound("organization", r.PathValue("id")))
 		return
 	}
 	w.Header().Set("Content-Type", "application/vnd.api+json")
@@ -145,11 +270,11 @@ func (c *OrganizationController) patch(w http.ResponseWriter, r *http.Request) {
 func (c *OrganizationController) activate(w http.ResponseWriter, r *http.Request) {
 	tok := auth.TokenFromCtx(r.Context())
 	if tok == nil {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return
 	}
 	if err := c.orgs.Activate(r.Context(), tok.Claims().Subject(), r.PathValue("id")); err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -158,12 +283,12 @@ func (c *OrganizationController) activate(w http.ResponseWriter, r *http.Request
 func (c *OrganizationController) listMine(w http.ResponseWriter, r *http.Request) {
 	tok := auth.TokenFromCtx(r.Context())
 	if tok == nil {
-		writeJSONError(w, apierrors.Unauthorized("authentication required"))
+		writeAPIError(r.Context(), w, apierrors.Unauthorized("authentication required"))
 		return
 	}
 	orgs, err := c.orgs.ListForAccount(r.Context(), tok.Claims().Subject())
 	if err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	list := resource.ListResponseToDTO(api.OrganizationToDTO)(resource.NewListResponse(orgs, len(orgs)))
@@ -246,7 +371,7 @@ func (c *OrganizationController) listMembers(w http.ResponseWriter, r *http.Requ
 	orgID := r.PathValue("id")
 	members, err := c.orgs.ListMembers(r.Context(), orgID)
 	if err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	list := resource.ListResponseToDTO(func(b domain.Binding) *api.MembershipDTO {
@@ -259,15 +384,15 @@ func (c *OrganizationController) listMembers(w http.ResponseWriter, r *http.Requ
 func (c *OrganizationController) addMember(w http.ResponseWriter, r *http.Request) {
 	var body addOrgMemberRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, apierrors.InvalidArgument("invalid request body"))
+		writeAPIError(r.Context(), w, apierrors.InvalidArgument("invalid request body"))
 		return
 	}
 	if body.AccountID == "" || body.Role == "" {
-		writeJSONError(w, apierrors.InvalidArgument("accountId and role are required"))
+		writeAPIError(r.Context(), w, apierrors.InvalidArgument("accountId and role are required"))
 		return
 	}
 	if err := c.orgs.AddMember(r.Context(), r.PathValue("id"), body.AccountID, body.Role); err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -275,7 +400,7 @@ func (c *OrganizationController) addMember(w http.ResponseWriter, r *http.Reques
 
 func (c *OrganizationController) removeMember(w http.ResponseWriter, r *http.Request) {
 	if err := c.orgs.RemoveMember(r.Context(), r.PathValue("id"), r.PathValue("accountId")); err != nil {
-		writeJSONError(w, err)
+		writeAPIError(r.Context(), w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
