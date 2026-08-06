@@ -57,6 +57,12 @@ type Account interface {
 	Email() string
 	EmailVerified() bool
 	DisplayName() string
+	// GivenName and FamilyName are the parts a settings form edits. They are separate from
+	// DisplayName rather than derived from it: splitting a display name on whitespace guesses
+	// wrongly for compound surnames and for names that are not ordered given-then-family, and a
+	// guess in a profile field is indistinguishable from something the person typed.
+	GivenName() string
+	FamilyName() string
 	PhotoURL() string
 	LastLoginAt() *time.Time
 	FailedLoginCount() int
@@ -72,6 +78,8 @@ type account struct {
 	email            string
 	emailVerified    bool
 	displayName      string
+	givenName        string
+	familyName       string
 	photoURL         string
 	lastLoginAt      *time.Time
 	failedLoginCount int
@@ -94,6 +102,14 @@ func WithAccountStatus(s AccountStatus) AccountOption {
 
 func WithAccountEmailVerified(v bool) AccountOption {
 	return func(a *account) { a.emailVerified = v }
+}
+
+func WithAccountGivenName(n string) AccountOption {
+	return func(a *account) { a.givenName = n }
+}
+
+func WithAccountFamilyName(n string) AccountOption {
+	return func(a *account) { a.familyName = n }
 }
 
 func WithAccountPhotoURL(p string) AccountOption {
@@ -135,6 +151,8 @@ func (a *account) Status() AccountStatus    { return a.status }
 func (a *account) Email() string            { return a.email }
 func (a *account) EmailVerified() bool      { return a.emailVerified }
 func (a *account) DisplayName() string      { return a.displayName }
+func (a *account) GivenName() string        { return a.givenName }
+func (a *account) FamilyName() string       { return a.familyName }
 func (a *account) PhotoURL() string         { return a.photoURL }
 func (a *account) LastLoginAt() *time.Time  { return a.lastLoginAt }
 func (a *account) FailedLoginCount() int    { return a.failedLoginCount }

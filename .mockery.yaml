@@ -39,6 +39,7 @@ packages:
       AccountActiveOrgRepository:
       PreferenceStore:
       PreferenceUsecase:
+      ProfileUsecase:
       Auditor:
       BindingRepository:
       BindingUsecase:

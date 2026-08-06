@@ -30,6 +30,9 @@ type AccountRepository interface {
 	// profile-table transition because the generic Patcher targets the
 	// account root, not the profile table where email_verified lives.
 	MarkEmailVerified(ctx context.Context, accountID string) error
+	// UpdateProfileNames writes the name parts and the derived display name, which are on the
+	// profile table for the same reason email_verified is.
+	UpdateProfileNames(ctx context.Context, accountID, given, family, display string) error
 	// Ban/Unban/RestoreExpiredBans manage the moderation lifecycle on the
 	// account root (status + banned_until + ban_reason).
 	Ban(ctx context.Context, accountID string, until *time.Time, reason string) error

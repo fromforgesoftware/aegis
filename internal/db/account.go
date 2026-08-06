@@ -48,6 +48,11 @@ var accountFieldMapping = map[string]string{
 	fields.LastLoginAt:      "last_login_at",
 	fields.FailedLoginCount: "failed_login_count",
 	fields.LockedUntil:      "locked_until",
+	// On the profile table, written through PatchApply against userAccountEntity rather than
+	// read through the join — see UpdateProfileNames.
+	fields.GivenName:   "given_name",
+	fields.FamilyName:  "family_name",
+	fields.DisplayName: "display_name",
 }
 
 var credentialFieldMapping = map[string]string{
@@ -105,6 +110,20 @@ func (e *accountEntity) DisplayName() string {
 	return e.Profile.EDisplayName
 }
 
+func (e *accountEntity) GivenName() string {
+	if e.Profile == nil {
+		return ""
+	}
+	return e.Profile.EGivenName
+}
+
+func (e *accountEntity) FamilyName() string {
+	if e.Profile == nil {
+		return ""
+	}
+	return e.Profile.EFamilyName
+}
+
 func (e *accountEntity) PhotoURL() string {
 	if e.Profile == nil {
 		return ""
@@ -125,6 +144,8 @@ type userAccountEntity struct {
 	EEmail         string     `gorm:"column:email"`
 	EEmailVerified bool       `gorm:"column:email_verified"`
 	EDisplayName   string     `gorm:"column:display_name"`
+	EGivenName     string     `gorm:"column:given_name"`
+	EFamilyName    string     `gorm:"column:family_name"`
 	EPhotoURL      string     `gorm:"column:photo_url"`
 }
 
@@ -162,6 +183,8 @@ func accountToEntity(acc domain.Account) *accountEntity {
 			EEmail:         acc.Email(),
 			EEmailVerified: acc.EmailVerified(),
 			EDisplayName:   acc.DisplayName(),
+			EGivenName:     acc.GivenName(),
+			EFamilyName:    acc.FamilyName(),
 			EPhotoURL:      acc.PhotoURL(),
 		},
 	}
@@ -291,6 +314,26 @@ func (r *accountRepo) Patch(ctx context.Context, opts ...repository.PatchOption)
 func (r *accountRepo) MarkEmailVerified(ctx context.Context, accountID string) error {
 	q := query.New(query.FilterBy(filter.OpEq, fields.AccountID, accountID))
 	if err := r.PatchApply(ctx, q, &userAccountEntity{}, map[string]any{fields.EmailVerified: true}).Error; err != nil {
+		return postgres.NewErrUnknown(err)
+	}
+	return nil
+}
+
+// UpdateProfileNames writes the name parts, which live on the profile table.
+//
+// Explicit rather than through the generic Patcher for the same reason MarkEmailVerified is:
+// the Patcher targets aegis.account, and given_name, family_name and display_name are all on
+// aegis.user_account. Routing them through the Patcher would silently write nothing.
+func (r *accountRepo) UpdateProfileNames(
+	ctx context.Context, accountID, given, family, display string,
+) error {
+	q := query.New(query.FilterBy(filter.OpEq, fields.AccountID, accountID))
+	patch := map[string]any{
+		fields.GivenName:   given,
+		fields.FamilyName:  family,
+		fields.DisplayName: display,
+	}
+	if err := r.PatchApply(ctx, q, &userAccountEntity{}, patch).Error; err != nil {
 		return postgres.NewErrUnknown(err)
 	}
 	return nil

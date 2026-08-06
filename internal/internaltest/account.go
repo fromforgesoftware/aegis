@@ -22,6 +22,8 @@ type account struct {
 	email            string
 	emailVerified    bool
 	displayName      string
+	givenName        string
+	familyName       string
 	photoURL         string
 	lastLoginAt      *time.Time
 	failedLoginCount int
@@ -62,6 +64,16 @@ func WithAccountEmailVerified(v bool) AccountOption {
 func WithAccountDisplayName(n string) AccountOption {
 	return func(a *account) { a.displayName = n }
 }
+
+// WithAccountGivenName sets the given name a profile form would edit.
+func WithAccountGivenName(n string) AccountOption {
+	return func(a *account) { a.givenName = n }
+}
+
+// WithAccountFamilyName sets the family name a profile form would edit.
+func WithAccountFamilyName(n string) AccountOption {
+	return func(a *account) { a.familyName = n }
+}
 func WithAccountLockedUntil(t *time.Time) AccountOption {
 	return func(a *account) { a.lockedUntil = t }
 }
@@ -91,6 +103,8 @@ func (a *account) Status() domain.AccountStatus    { return a.status }
 func (a *account) Email() string                   { return a.email }
 func (a *account) EmailVerified() bool             { return a.emailVerified }
 func (a *account) DisplayName() string             { return a.displayName }
+func (a *account) GivenName() string               { return a.givenName }
+func (a *account) FamilyName() string              { return a.familyName }
 func (a *account) PhotoURL() string                { return a.photoURL }
 func (a *account) LastLoginAt() *time.Time         { return a.lastLoginAt }
 func (a *account) FailedLoginCount() int           { return a.failedLoginCount }

@@ -46,5 +46,8 @@ const (
 	Action           = "action"
 	Slug             = "slug"
 	Key              = "key"
+	GivenName        = "givenName"
+	FamilyName       = "familyName"
+	DisplayName      = "displayName"
 	OrganizationID   = "organizationId"
 )
