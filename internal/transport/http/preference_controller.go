@@ -7,6 +7,8 @@ import (
 
 	"github.com/fromforgesoftware/go-kit/auth"
 	apierrors "github.com/fromforgesoftware/go-kit/errors"
+	"github.com/fromforgesoftware/go-kit/jsonapi"
+	"github.com/fromforgesoftware/go-kit/resource"
 	kitrest "github.com/fromforgesoftware/go-kit/transport/rest"
 
 	"github.com/fromforgesoftware/aegis/internal/api"
@@ -19,7 +21,7 @@ import (
 //	GET    /api/me/preferences?keys=ui.theme,ui.locale   (auth: self)
 //	PATCH  /api/me/preferences                            (auth: self)
 //	DELETE /api/me/preferences?keys=ui.theme              (auth: self)
-//	GET    /api/preferences/registry                      (auth: self)
+//	GET    /api/me/preferences/registry                   (auth: self)
 //
 // It lives under /api/me rather than /api/accounts/{id}/preferences because the
 // only account whose preferences anyone may read or write here is their own. A
@@ -51,11 +53,15 @@ func (c *PreferenceController) Routes(r kitrest.Router) {
 		r.Get("", c.requireSelf(http.HandlerFunc(c.list)))
 		r.Patch("", c.requireSelf(http.HandlerFunc(c.update)))
 		r.Delete("", c.requireSelf(http.HandlerFunc(c.reset)))
+		// The registry lives under /api/me too, even though its content is identical
+		// for every caller. A sibling path like /api/preferences/registry would be a
+		// SECOND prefix every gateway in the platform has to learn — and the first
+		// deployment proved it: /api/me was already routed and this was not, so the
+		// endpoint 404'd at the gateway while the rest of the feature worked.
+		// It stays behind a token because it enumerates the settings surface.
+		r.Get("/registry", c.requireSelf(http.HandlerFunc(c.registry)))
 	})
-	// The registry is the same for everyone, but it is still behind a token: it
-	// enumerates the platform's settings surface, which is not something to publish
-	// to unauthenticated callers.
-	r.Get("/api/preferences/registry", c.requireSelf(http.HandlerFunc(c.registry)))
+
 }
 
 // requireSelf authenticates a realm end-user's bearer token, exactly as the avatar
@@ -118,10 +124,6 @@ func requestedKeys(r *http.Request) []string {
 	return keys
 }
 
-type preferenceDocument struct {
-	Data []*api.PreferenceDTO `json:"data"`
-}
-
 func (c *PreferenceController) list(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := accountIDFromCtx(r)
 	if !ok {
@@ -133,11 +135,7 @@ func (c *PreferenceController) list(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, err)
 		return
 	}
-	out := make([]*api.PreferenceDTO, 0, len(resolved))
-	for _, p := range resolved {
-		out = append(out, api.PreferenceToDTO(p))
-	}
-	writeJSON(w, http.StatusOK, preferenceDocument{Data: out})
+	writePreferences(w, resolved)
 }
 
 // updateRequest is a JSON:API-shaped bulk body: each member addresses a
@@ -210,11 +208,20 @@ func (c *PreferenceController) update(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, err)
 		return
 	}
-	out := make([]*api.PreferenceDTO, 0, len(resolved))
-	for _, p := range resolved {
-		out = append(out, api.PreferenceToDTO(p))
-	}
-	writeJSON(w, http.StatusOK, preferenceDocument{Data: out})
+	writePreferences(w, resolved)
+}
+
+// writePreferences renders a resolved set as a JSON:API collection.
+//
+// jsonapi.MarshalManyPayloads, not encoding/json: the DTO describes itself with
+// `jsonapi:"attr,…"` tags, which encoding/json ignores entirely — so marshalling it
+// the obvious way produced {"RKey":…,"RValue":…} instead of the attributes object,
+// and no JSON:API client could read it.
+func writePreferences(w http.ResponseWriter, resolved []domain.Preference) {
+	list := resource.ListResponseToDTO(api.PreferenceToDTO)(
+		resource.NewListResponse(resolved, len(resolved)))
+	w.Header().Set("Content-Type", "application/vnd.api+json")
+	_ = jsonapi.MarshalManyPayloads(w, list)
 }
 
 func (c *PreferenceController) reset(w http.ResponseWriter, r *http.Request) {
@@ -239,17 +246,12 @@ func (c *PreferenceController) reset(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-type registryDocument struct {
-	Data []*api.PreferenceSpecDTO `json:"data"`
-}
-
 func (c *PreferenceController) registry(w http.ResponseWriter, r *http.Request) {
 	specs := domain.PreferenceRegistry()
-	out := make([]*api.PreferenceSpecDTO, 0, len(specs))
-	for _, s := range specs {
-		out = append(out, api.PreferenceSpecToDTO(s))
-	}
-	writeJSON(w, http.StatusOK, registryDocument{Data: out})
+	list := resource.ListResponseToDTO(api.PreferenceSpecToDTO)(
+		resource.NewListResponse(specs, len(specs)))
+	w.Header().Set("Content-Type", "application/vnd.api+json")
+	_ = jsonapi.MarshalManyPayloads(w, list)
 }
 
 // maxPreferenceBodyBytes bounds a batch update. The registry cap and per-value
