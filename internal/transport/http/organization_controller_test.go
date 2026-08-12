@@ -5,11 +5,15 @@ import (
 	"encoding/base64"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/fromforgesoftware/go-kit/auth/jwt"
+	"github.com/fromforgesoftware/go-kit/resource"
 	"github.com/fromforgesoftware/go-kit/transport/rest/restest"
 
 	"github.com/fromforgesoftware/aegis/internal/app"
@@ -264,4 +268,102 @@ func longName() string {
 		out[i] = 'a'
 	}
 	return string(out)
+}
+
+// A SERVICE holding FORGE_GATEWAY_SECRET is the other legitimate caller of the collection listing.
+//
+// This exists because closing the anonymous path closed the only door a back-office caller had: a
+// seeder has no user to borrow a realm token from, and `make run-fixtures` started failing with
+// "authentication required" against an organization it could see in the database. The fix is a
+// service identity, not a public endpoint — so the assertions below are BOTH halves. A gateway token
+// gets the full collection; everything that is not one still gets 401.
+func TestOrganizationController_ServiceTokenListsTheCollection(t *testing.T) {
+	secret := "test-gateway-secret"
+	t.Setenv("FORGE_GATEWAY_SECRET", secret)
+
+	issuer, err := jwt.NewHMACIssuer(secret)
+	if err != nil {
+		t.Fatalf("build issuer: %v", err)
+	}
+	token, err := issuer.Issue(context.Background(), uuid.New(), "trading-fixtures")
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+
+	orgs := apptest.NewOrganizationUsecase(t)
+	// The whole collection, unscoped: a service has no memberships to scope to. ListForAccount is
+	// deliberately NOT expected — reaching it would mean the service was treated as a user and
+	// silently handed an empty list.
+	orgs.EXPECT().List(mock.Anything, mock.Anything).
+		Return(resource.NewListResponse([]domain.Organization{ownedOrg()}, 1), nil)
+
+	req := restest.NewReq(t, context.Background(), http.MethodGet,
+		"/api/organizations?filter%5Bslug%5D%5Beq%5D=acme", http.NoBody)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	orgControllerFor(t, orgs).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "Acme") {
+		t.Errorf("the service did not get the organization back: %s", rr.Body.String())
+	}
+}
+
+func TestOrganizationController_ATokenThatIsNotTheGatewaysIsStillRefused(t *testing.T) {
+	t.Setenv("FORGE_GATEWAY_SECRET", "test-gateway-secret")
+
+	// Signed with a DIFFERENT secret. The service door is only as good as the check on it: if any
+	// bearer token opened it, the anonymous tenant dump would be back with one extra step.
+	other, err := jwt.NewHMACIssuer("not-the-deployment-secret")
+	if err != nil {
+		t.Fatalf("build issuer: %v", err)
+	}
+	token, err := other.Issue(context.Background(), uuid.New(), "impostor")
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+
+	// Neither listing may be reached, so neither is expected on the mock.
+	orgs := apptest.NewOrganizationUsecase(t)
+
+	req := restest.NewReq(t, context.Background(), http.MethodGet, "/api/organizations", http.NoBody)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	orgControllerFor(t, orgs).ServeHTTP(rr, req)
+
+	// It falls through to the realm-token check, which cannot parse it as a realm token.
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401 (body: %s)", rr.Code, rr.Body.String())
+	}
+}
+
+func TestOrganizationController_WithNoSecretConfiguredThereIsNoServiceDoor(t *testing.T) {
+	// The default deployment. With no secret there is no service identity to hold, so the route
+	// behaves exactly as it did before the door existed: authenticated end-users only.
+	t.Setenv("FORGE_GATEWAY_SECRET", "")
+
+	issuer, err := jwt.NewHMACIssuer("any-secret")
+	if err != nil {
+		t.Fatalf("build issuer: %v", err)
+	}
+	token, err := issuer.Issue(context.Background(), uuid.New(), "trading-fixtures")
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+
+	orgs := apptest.NewOrganizationUsecase(t)
+
+	req := restest.NewReq(t, context.Background(), http.MethodGet, "/api/organizations", http.NoBody)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	orgControllerFor(t, orgs).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rr.Code)
+	}
 }

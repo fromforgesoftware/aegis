@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 
 	"github.com/fromforgesoftware/go-kit/application/repository"
 	"github.com/fromforgesoftware/go-kit/auth"
+	"github.com/fromforgesoftware/go-kit/auth/jwt"
 	apierrors "github.com/fromforgesoftware/go-kit/errors"
 	"github.com/fromforgesoftware/go-kit/filter"
 	"github.com/fromforgesoftware/go-kit/jsonapi"
@@ -31,10 +33,23 @@ type OrganizationController struct {
 	orgs   app.OrganizationUsecase
 	realms app.RealmUsecase
 	tokens app.TokenIssuer
+	// gateway validates the shared-secret token a trusted SERVICE presents. Nil when
+	// FORGE_GATEWAY_SECRET is unset, which is what stops a deployment that has configured no service
+	// identity from acquiring one by accident.
+	gateway jwt.Validator
 }
 
 func NewOrganizationController(orgs app.OrganizationUsecase, realms app.RealmUsecase, tokens app.TokenIssuer) kitrest.Controller {
-	return &OrganizationController{orgs: orgs, realms: realms, tokens: tokens}
+	c := &OrganizationController{orgs: orgs, realms: realms, tokens: tokens}
+	// The same secret the gateway middleware gates /api with, read the same way. A malformed one is
+	// treated as absent rather than fatal: that middleware would already be refusing every /api
+	// request, and failing startup here would turn a misconfiguration into an outage.
+	if secret := os.Getenv("FORGE_GATEWAY_SECRET"); secret != "" {
+		if validator, err := jwt.NewHMACIssuer(secret); err == nil {
+			c.gateway = validator
+		}
+	}
+	return c
 }
 
 func (c *OrganizationController) Routes(r kitrest.Router) {
@@ -49,13 +64,21 @@ func (c *OrganizationController) Routes(r kitrest.Router) {
 				openapi.Tags("tenancy"), openapi.Errors(400, 401, 409),
 			),
 		)))
-		// Listing the collection is authenticated and scoped to the caller's own memberships.
+		// Listing the collection has two legitimate callers, and answers each differently.
 		//
-		// It was anonymous, which returned every tenant in every realm — name, slug, owner
-		// account id and realm id — to anyone who could reach the route. There is no
-		// administrator identity in this service to authorize a genuine cross-tenant listing
-		// against, so the only honest answer it can give is the caller's own workspaces.
-		r.Get("", c.requireRealmToken(http.HandlerFunc(c.listMine)))
+		// A realm END-USER gets their own memberships. This route was once anonymous, which returned
+		// every tenant in every realm — name, slug, owner account id and realm id — to anyone who
+		// could reach it.
+		//
+		// A trusted SERVICE holding FORGE_GATEWAY_SECRET gets the whole collection, filtered by the
+		// query. That is not a reopening of the above: the secret is a deployment credential, it is
+		// the identity every service-to-service call in the platform already presents, and the
+		// gateway middleware gates this same /api surface with it. Closing the anonymous path left
+		// back-office callers — a seeder, a migration tool — with no door at all, because they have
+		// no user to borrow a token from. The answer to that is a service identity, not a public
+		// endpoint.
+		r.Get("", c.requireRealmTokenOrService(
+			http.HandlerFunc(c.listMine), http.HandlerFunc(c.listAll)))
 		r.Route("/{id}", func(r kitrest.Router) {
 			r.Get("", c.requireOrgMembership(kitrest.NewJsonApiGetHandler(
 				c.orgs, api.OrganizationToDTO, []query.ParseOpt{},
@@ -80,6 +103,45 @@ func (c *OrganizationController) Routes(r kitrest.Router) {
 // into the context, so the self-service tenancy endpoints (create org, activate,
 // me/organizations) work for an SPA calling aegis without the forge gateway.
 // The realm is identified by the token's issuer (.../realms/<name>).
+// requireRealmTokenOrService routes a request by WHO is asking.
+//
+// A valid gateway token means a service, which gets `service`. Anything else falls through to the
+// realm-token check and gets `user`. The gateway branch is tried first, and only when a secret is
+// configured — so a deployment without one behaves exactly as it did before this existed.
+func (c *OrganizationController) requireRealmTokenOrService(user, service http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if c.gateway != nil {
+			if raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "); raw != "" {
+				if _, err := c.gateway.Validate(r.Context(), raw); err == nil {
+					service.ServeHTTP(w, r)
+					return
+				}
+			}
+		}
+		c.requireRealmToken(user).ServeHTTP(w, r)
+	})
+}
+
+// listAll answers a SERVICE with the whole collection, honouring the request's filters.
+//
+// Unscoped because a service has no memberships to scope to: it acts for the platform rather than
+// for a person, which is precisely why it had to prove it holds the deployment secret to get here.
+func (c *OrganizationController) listAll(w http.ResponseWriter, r *http.Request) {
+	opts, err := query.ParseOptsFromHTTPReq(r)
+	if err != nil {
+		writeAPIError(r.Context(), w, err)
+		return
+	}
+	found, err := c.orgs.List(r.Context(), search.WithQueryOpts(opts...))
+	if err != nil {
+		writeAPIError(r.Context(), w, err)
+		return
+	}
+	list := resource.ListResponseToDTO(api.OrganizationToDTO)(found)
+	w.Header().Set("Content-Type", "application/vnd.api+json")
+	_ = jsonapi.MarshalManyPayloads(w, list)
+}
+
 func (c *OrganizationController) requireRealmToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := r.Header.Get("Authorization")
