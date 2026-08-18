@@ -172,7 +172,24 @@ func usecasesFxModule() fx.Option {
 
 func transportFxModule() fx.Option {
 	return fx.Module("aegis:transport",
-		kitrest.NewFxMiddleware(kitrest.NewGatewayMiddleware),
+		// NO gateway middleware here, deliberately.
+		//
+		// kitrest.NewGatewayMiddleware gates every /api/* path behind an HMAC token signed with the shared
+		// FORGE_GATEWAY_SECRET. That is right for a service whose /api surface is an ADMIN surface reached by
+		// the platform gateway. It is wrong for aegis, whose /api surface is the USER's own self-service one:
+		// /api/me, /api/me/password, /api/me/organizations, /api/organizations. Those are called by a browser
+		// holding a realm access token, and a browser must never hold the shared secret — so with the secret
+		// configured, every one of them answered "invalid gateway token" and the SPA could not read its own
+		// profile. It looked like a broken page rather than a middleware doing what it was told.
+		//
+		// Nothing is lost by removing it: every /api route here authenticates its own caller —
+		// requireSelf and requireRealmToken verify a realm access token, requireOrgOwner and
+		// requireOrgMembership add authorization on top, and requireRealmTokenOrService is where a
+		// SERVICE caller is validated against that same shared secret, at the one route that needs it.
+		// The two exceptions are the avatar GETs, which are public because an <img src> cannot send a
+		// bearer token.
+		//
+		// aegis's real admin surface is gRPC, which this middleware never covered.
 		fx.Invoke(registerGrantSweeper),
 		fx.Invoke(registerSessionPurger),
 		fx.Invoke(registerBanSweeper),
